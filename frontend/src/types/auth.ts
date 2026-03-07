@@ -49,3 +49,15 @@ export interface RegisterPayload {
   full_name: string
   organization_name?: string
 }
+
+export type SubscriptionTier = 'free' | 'basic_premium' | 'premium'
+
+export interface NavItem {
+  id: string
+  label: string
+  path: string
+  icon: string
+  badge?: number
+  tier?: SubscriptionTier
+  children?: NavItem[]
+}
