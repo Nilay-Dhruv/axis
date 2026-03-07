@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
     jwt_required, get_jwt_identity, create_access_token
 )
+from app import limiter 
 from marshmallow import ValidationError
 from app.schemas.user_schema import RegisterSchema, LoginSchema
 from app.services.auth_service import AuthService
@@ -13,6 +14,7 @@ login_schema = LoginSchema()
 
 
 @auth_bp.route('/register', methods=['POST'])
+@limiter.limit("10 per hour")
 def register():
     """Register a new user"""
     try:
@@ -48,6 +50,7 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
+@limiter.limit("10 per hour")
 def login():
     """Login user and return tokens"""
     try:

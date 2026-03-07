@@ -4,12 +4,15 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_mail import Mail
 from flask_bcrypt import Bcrypt
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from .config import Config
 
 db = SQLAlchemy()
 jwt = JWTManager()
 mail = Mail()
 bcrypt = Bcrypt()
+limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -18,6 +21,7 @@ def create_app(config_class=Config):
     db.init_app(app)
     jwt.init_app(app)
     bcrypt.init_app(app)
+    limiter.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": app.config['FRONTEND_URL']}})
     mail.init_app(app)
 
