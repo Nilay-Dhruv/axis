@@ -8,6 +8,8 @@ import ComingSoon from './pages/ComingSoon'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import PublicRoute from './components/common/PublicRoute'
 import Activities from './pages/Activities'
+import Outcomes from './pages/Outcomes'
+import Signals from './pages/Signals'
 
 export default function App() {
   return (
@@ -26,8 +28,8 @@ export default function App() {
           <Route path="/dashboard"   element={<Dashboard />} />
           <Route path="/departments" element={<Departments />} />
           <Route path="/activities" element={<Activities />} />
-          <Route path="/outcomes"    element={<ComingSoon />} />
-          <Route path="/signals"     element={<ComingSoon />} />
+          <Route path="/outcomes" element={<Outcomes />} />
+          <Route path="/signals"  element={<Signals />} />
           <Route path="/analytics"   element={<ComingSoon />} />
           <Route path="/automations" element={<ComingSoon />} />
           <Route path="/decisions"   element={<ComingSoon />} />

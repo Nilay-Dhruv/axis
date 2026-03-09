@@ -95,3 +95,43 @@ export interface ActivitiesState {
   filterDept: string
   filterType: string
 }
+
+export interface Signal {
+  id: string
+  outcome_id: string
+  name: string
+  value: number | null
+  threshold_min: number | null
+  threshold_max: number | null
+  status: 'normal' | 'warning' | 'critical'
+  last_updated: string
+}
+
+export interface OutcomeWithSignals {
+  outcome: Outcome
+  signals: Signal[]
+}
+
+export interface OutcomeSummary {
+  total_outcomes: number
+  achieved: number
+  at_risk: number
+  active: number
+  total_signals: number
+  critical_signals: number
+  warning_signals: number
+  normal_signals: number
+}
+
+export interface OutcomesState {
+  list: Outcome[]
+  selected: OutcomeWithSignals | null
+  summary: OutcomeSummary | null
+  alerts: Signal[]
+  loading: boolean
+  detailLoading: boolean
+  error: string | null
+  searchQuery: string
+  filterStatus: string
+  filterDept: string
+}
