@@ -3,6 +3,7 @@ import MainLayout from './components/layout/MainLayout'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import Departments from './pages/Departments'
 import ComingSoon from './pages/ComingSoon'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import PublicRoute from './components/common/PublicRoute'
@@ -11,11 +12,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes */}
         <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
-        {/* Protected routes — all wrapped in MainLayout */}
         <Route
           element={
             <ProtectedRoute>
@@ -24,7 +23,7 @@ export default function App() {
           }
         >
           <Route path="/dashboard"   element={<Dashboard />} />
-          <Route path="/departments" element={<ComingSoon />} />
+          <Route path="/departments" element={<Departments />} />
           <Route path="/activities"  element={<ComingSoon />} />
           <Route path="/outcomes"    element={<ComingSoon />} />
           <Route path="/signals"     element={<ComingSoon />} />
@@ -36,10 +35,9 @@ export default function App() {
           <Route path="/settings"    element={<ComingSoon />} />
         </Route>
 
-        {/* Default */}
         <Route path="/"  element={<Navigate to="/dashboard" replace />} />
         <Route path="*"  element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   )
-} 
+}
