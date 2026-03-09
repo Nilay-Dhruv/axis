@@ -10,6 +10,7 @@ import PublicRoute from './components/common/PublicRoute'
 import Activities from './pages/Activities'
 import Outcomes from './pages/Outcomes'
 import Signals from './pages/Signals'
+import Analytics from './pages/Analytics'
 
 export default function App() {
   return (
@@ -30,7 +31,7 @@ export default function App() {
           <Route path="/activities" element={<Activities />} />
           <Route path="/outcomes" element={<Outcomes />} />
           <Route path="/signals"  element={<Signals />} />
-          <Route path="/analytics"   element={<ComingSoon />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/automations" element={<ComingSoon />} />
           <Route path="/decisions"   element={<ComingSoon />} />
           <Route path="/simulations" element={<ComingSoon />} />
