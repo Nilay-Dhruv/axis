@@ -135,3 +135,46 @@ export interface OutcomesState {
   filterStatus: string
   filterDept: string
 }
+
+export interface Role {
+  id: string
+  organization_id: string
+  name: string
+  description: string | null
+  permissions: string[]
+  tier_required: string
+  is_default: boolean
+  is_system: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface RoleAssignment {
+  id: string
+  user_id: string
+  role_id: string
+  organization_id: string
+  department_id: string | null
+  assigned_by: string | null
+  assigned_at: string
+  role: Role
+}
+
+export interface RoleDetail {
+  role: Role
+  assignments: RoleAssignment[]
+  member_count: number
+}
+
+export interface PermissionMatrix {
+  [resource: string]: string[]
+}
+
+export interface RolesState {
+  list: Role[]
+  selected: RoleDetail | null
+  permissionMatrix: PermissionMatrix
+  myPermissions: string[]
+  loading: boolean
+  error: string | null
+}

@@ -11,6 +11,7 @@ import Activities from './pages/Activities'
 import Outcomes from './pages/Outcomes'
 import Signals from './pages/Signals'
 import Analytics from './pages/Analytics'
+import Roles from './pages/Roles'
 
 export default function App() {
   return (
@@ -35,7 +36,7 @@ export default function App() {
           <Route path="/automations" element={<ComingSoon />} />
           <Route path="/decisions"   element={<ComingSoon />} />
           <Route path="/simulations" element={<ComingSoon />} />
-          <Route path="/roles"       element={<ComingSoon />} />
+          <Route path="/roles" element={<Roles />} />
           <Route path="/settings"    element={<ComingSoon />} />
         </Route>
 

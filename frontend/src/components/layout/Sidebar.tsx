@@ -1,265 +1,241 @@
-import { NavLink } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
-import type { SidebarProps } from '../../types/layout'
+import { type ReactElement } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { logoutUser } from '../../store/authSlice'
 
-const NAV_SECTIONS = [
+interface Props {
+  isOpen: boolean
+  onClose: () => void
+}
+
+interface NavItem {
+  label: string
+  path: string
+  icon: string
+  locked?: boolean
+}
+
+interface NavGroup {
+  section: string
+  items: NavItem[]
+}
+const NAV: NavGroup[] = [
   {
-    label: 'CORE',
+    section: 'CORE',
     items: [
-      { id: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: '⬡' },
-      { id: 'departments', label: 'Departments', path: '/departments', icon: '◈' },
-      { id: 'activities', label: 'Activities', path: '/activities', icon: '◎' },
+      { label: 'Dashboard',   path: '/dashboard',   icon: '◈' },
+      { label: 'Departments', path: '/departments',  icon: '◉' },
     ],
   },
   {
-    label: 'INTELLIGENCE',
+    section: 'INTELLIGENCE',
     items: [
-      { id: 'outcomes', label: 'Outcomes', path: '/outcomes', icon: '◆' },
-      { id: 'signals', label: 'Signals', path: '/signals', icon: '▲' },
-      { id: 'analytics', label: 'Analytics', path: '/analytics', icon: '◉' },
+      { label: 'Activities',  path: '/activities',  icon: '◎' },
+      { label: 'Outcomes',    path: '/outcomes',    icon: '◆' },
+      { label: 'Signals',     path: '/signals',     icon: '▲' },
+      { label: 'Analytics',   path: '/analytics',   icon: '◷' },
     ],
   },
   {
-    label: 'OPERATIONS',
+    section: 'OPERATIONS',
     items: [
-      { id: 'automations', label: 'Automations', path: '/automations', icon: '⬟', badge: 3 },
-      { id: 'decisions', label: 'Decision Log', path: '/decisions', icon: '◐' },
-      { id: 'simulations', label: 'Simulations', path: '/simulations', icon: '⬠', tier: 'premium' },
+      { label: 'Automations', path: '/automations', icon: '⚙', locked: true },
+      { label: 'Decisions',   path: '/decisions',   icon: '◐', locked: true },
+      { label: 'Simulations', path: '/simulations', icon: '◑', locked: true },
     ],
   },
   {
-    label: 'SYSTEM',
+    section: 'SYSTEM',
     items: [
-      { id: 'roles', label: 'Roles & Access', path: '/roles', icon: '◑' },
-      { id: 'settings', label: 'Settings', path: '/settings', icon: '◧' },
+      { label: 'Roles',     path: '/roles',     icon: '◧' },
+      { label: 'Settings',  path: '/settings',  icon: '◫' },
     ],
   },
 ]
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
-//   const location = useLocation()
-  const { user } = useAuth()
+export default function Sidebar({ isOpen, onClose }: Props): ReactElement {
+  const dispatch = useAppDispatch()
+  const navigate = useNavigate()
+  const user     = useAppSelector((s) => s.auth.user)
 
-  const tier = user?.subscription_tier ?? 'free'
+  const initials = user?.full_name
+    ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'AX'
+
+  const handleLogout = async () => {
+    await dispatch(logoutUser())
+    navigate('/login')
+  }
+
+  if (!isOpen) return <></>
 
   return (
     <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar panel */}
-      <aside
+      {/* Overlay on mobile */}
+      <div
+        onClick={onClose}
         style={{
-          width: 'var(--sidebar-width)',
-          transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          borderRight: '1px solid var(--border)',
-          background: 'var(--bg-surface)',
+          display: 'none',
+          position: 'fixed', inset: 0, zIndex: 40,
+          background: 'rgba(26,38,53,0.3)',
+          backdropFilter: 'blur(2px)',
         }}
-        className="fixed top-0 left-0 h-full z-40 flex flex-col lg:translate-x-0 lg:static lg:z-auto"
-      >
+      />
+
+      <aside style={{
+        position: 'fixed',
+        top: 0, left: 0, bottom: 0,
+        width: 260,
+        background: '#e6ecf3',
+        boxShadow: '8px 0 24px rgba(195,205,216,0.6)',
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+        overflowY: 'auto',
+      }}>
+
         {/* Logo */}
-        <div
-          style={{ height: 'var(--header-height)', borderBottom: '1px solid var(--border)' }}
-          className="flex items-center px-5 shrink-0"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--cyan-glow)',
-                border: '1px solid var(--cyan)',
-                boxShadow: '0 0 12px var(--cyan-glow-strong)',
-              }}
-              className="flex items-center justify-center"
-            >
-              <span
-                style={{ color: 'var(--cyan)', fontSize: 14, fontFamily: 'Rajdhani', fontWeight: 700 }}
-              >
-                AX
-              </span>
+        <div style={{
+          padding: '24px 22px 20px',
+          borderBottom: '1px solid var(--divider)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #5aa9c4, #7ec8e3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, color: 'white',
+            boxShadow: '4px 4px 10px #c8d2de, -4px -4px 10px #ffffff',
+            flexShrink: 0,
+          }}>
+            ◈
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#1a2635', letterSpacing: '0.3px' }}>
+              AXIS
             </div>
-            <div>
-              <div
-                style={{ fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 18, letterSpacing: '0.1em', color: 'var(--text-primary)' }}
-              >
-                AXIS
-              </div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.2em' }}>
-                CENTRAL INTELLIGENCE
-              </div>
+            <div style={{ fontSize: 9, color: '#8096aa', letterSpacing: '0.8px', fontWeight: 600 }}>
+              CENTRAL INTELLIGENCE
             </div>
           </div>
-
-          {/* Mobile close button */}
-          <button
-            onClick={onClose}
-            style={{ color: 'var(--text-muted)' }}
-            className="ml-auto lg:hidden hover:text-white transition-colors p-1"
-          >
-            ✕
-          </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3">
-          {NAV_SECTIONS.map((section) => (
-            <div key={section.label} className="mb-5">
-              <div
-                style={{
-                  fontSize: 9,
-                  letterSpacing: '0.2em',
-                  color: 'var(--text-muted)',
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 600,
-                  padding: '0 8px',
-                  marginBottom: 4,
-                }}
-              >
-                {section.label}
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '16px 14px' }}>
+          {NAV.map((group) => (
+            <div key={group.section} style={{ marginBottom: 24 }}>
+              <div style={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '1.2px',
+                color: '#8096aa',
+                padding: '0 8px',
+                marginBottom: 6,
+              }}>
+                {group.section}
               </div>
 
-              {section.items.map((item) => {
-  const isPremiumLocked = item.tier === 'premium' && tier === 'free'
-
-                return (
-                    <NavLink
-                    key={item.id}
-                    to={isPremiumLocked ? '#' : item.path}
-                    onClick={isPremiumLocked ? (e) => e.preventDefault() : onClose}
-                    style={({ isActive: navActive }) => ({
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '8px 10px',
-                        marginBottom: 1,
-                        borderRadius: 6,
-                        fontSize: 13,
-                        fontWeight: 500,
-                        letterSpacing: '0.02em',
-                        textDecoration: 'none',
-                        position: 'relative',
-                        transition: 'all 0.15s ease',
-                        background: navActive ? 'var(--cyan-glow)' : 'transparent',
-                        color: navActive
-                        ? 'var(--cyan)'
-                        : isPremiumLocked
-                        ? 'var(--text-muted)'
-                        : 'var(--text-secondary)',
-                        borderLeft: navActive
-                        ? '2px solid var(--cyan)'
-                        : '2px solid transparent',
-                        opacity: isPremiumLocked ? 0.5 : 1,
-                        cursor: isPremiumLocked ? 'not-allowed' : 'pointer',
+              {group.items.map((item) => (
+                item.locked ? (
+                  <div
+                    key={item.path}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      color: '#b0c2d4',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'not-allowed',
+                      marginBottom: 2,
+                    }}
+                  >
+                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
+                    <span style={{ flex: 1 }}>{item.label}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.5px',
+                      background: '#eaf4fb', color: '#5aa9c4',
+                      padding: '2px 6px', borderRadius: 30,
+                    }}>
+                      PRO
+                    </span>
+                  </div>
+                ) : (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    style={({ isActive }) => ({
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      color: isActive ? '#5aa9c4' : '#4a5e72',
+                      fontSize: 13,
+                      fontWeight: isActive ? 700 : 600,
+                      textDecoration: 'none',
+                      marginBottom: 2,
+                      background: isActive ? 'rgba(90,169,196,0.1)' : 'transparent',
+                      boxShadow: isActive
+                        ? 'inset 3px 3px 8px #c3cdd8, inset -3px -3px 8px #ffffff'
+                        : 'none',
+                      transition: 'all 0.2s',
                     })}
-                    className="group"
-                    >
-                    {({ isActive: navActive }) => (
-                      <>
-                        <span
-                          style={{
-                            fontSize: 16,
-                            width: 20,
-                            textAlign: 'center',
-                            color: navActive ? 'var(--cyan)' : 'var(--text-muted)',
-                            transition: 'color 0.15s',
-                          }}
-                        >
-                          {item.icon}
-                        </span>
-
-                        <span style={{ flex: 1 }}>{item.label}</span>
-
-                        {/* Badge */}
-                        {item.badge && !isPremiumLocked && (
-                          <span
-                            style={{
-                              background: 'var(--cyan)',
-                              color: 'var(--bg-base)',
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: '1px 6px',
-                              borderRadius: 10,
-                              fontFamily: 'Rajdhani',
-                            }}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-
-                        {/* Premium lock */}
-                        {isPremiumLocked && (
-                          <span style={{ fontSize: 10, color: 'var(--warning)' }}>⬡ PRO</span>
-                        )}
-                      </>
-                    )}
+                  >
+                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
+                    <span>{item.label}</span>
                   </NavLink>
                 )
-              })}
+              ))}
             </div>
           ))}
         </nav>
 
-        {/* User card at bottom */}
-        <div
-          style={{ borderTop: '1px solid var(--border)', padding: '12px 14px' }}
-          className="shrink-0"
-        >
-          <div className="flex items-center gap-3">
-            {/* Avatar */}
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                background: 'var(--cyan-glow)',
-                border: '1px solid var(--border-bright)',
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 13,
-                fontWeight: 700,
-                color: 'var(--cyan)',
-                fontFamily: 'Rajdhani',
-                flexShrink: 0,
-              }}
-            >
-              {user?.full_name?.charAt(0).toUpperCase() ?? 'U'}
+        {/* User card */}
+        <div style={{
+          margin: '0 14px 16px',
+          background: '#e6ecf3',
+          borderRadius: 16,
+          boxShadow: 'inset 4px 4px 10px #c3cdd8, inset -4px -4px 10px #ffffff',
+          padding: '14px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #7ec8e3, #5aa9c4)',
+            color: 'white', fontWeight: 800, fontSize: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '3px 3px 8px #c3cdd8, -3px -3px 8px #ffffff',
+          }}>
+            {initials}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1a2635', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.full_name ?? 'User'}
             </div>
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--text-primary)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {user?.full_name}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: tier === 'premium' ? 'var(--cyan)' : 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 600,
-                }}
-              >
-                {tier === 'free' ? 'Free Tier' : tier === 'basic_premium' ? 'Basic Pro' : '◆ Premium'}
-              </div>
+            <div style={{ fontSize: 10, color: '#8096aa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.email}
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#8096aa', fontSize: 14, padding: 4,
+              borderRadius: 8,
+              transition: 'color 0.15s',
+            }}
+            title="Logout"
+          >
+            ⏻
+          </button>
         </div>
       </aside>
     </>

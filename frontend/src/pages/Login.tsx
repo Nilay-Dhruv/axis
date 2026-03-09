@@ -1,99 +1,267 @@
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { useForm, SubmitHandler } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useState, type ReactElement } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { useAuth } from '../hooks/useAuth.ts'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useAppDispatch, useAppSelector } from '../store/hooks'
+import { loginUser } from '../store/authSlice'
 
-const loginSchema = z.object({
-  email: z.string().email('Enter a valid email address'),
+const schema = z.object({
+  email:    z.string().email('Invalid email'),
   password: z.string().min(1, 'Password is required'),
 })
+type FormData = z.infer<typeof schema>
 
-type LoginFormData = z.infer<typeof loginSchema>
+export default function Login(): ReactElement {
+  const dispatch   = useAppDispatch()
+  const navigate   = useNavigate()
+  const { loading, error } = useAppSelector((s) => s.auth)
+  const [showPass, setShowPass] = useState(false)
 
-export default function Login() {
-  const { login, loading, error, clearErrors } = useAuth()
-
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(schema),
   })
 
-  useEffect(() => { return () => clearErrors() }, [])
-
-  const onSubmit: SubmitHandler<LoginFormData> = async (data) => {
-    await login(data.email, data.password)
+  const onSubmit = async (data: FormData) => {
+    const result = await dispatch(loginUser(data))
+    if (loginUser.fulfilled.match(result)) navigate('/dashboard')
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-black text-white tracking-tight">
-            AX<span className="text-indigo-500">IS</span>
-          </h1>
-          <p className="text-slate-400 mt-2 text-sm">Central Intelligence System</p>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #dde8f4 0%, #e8eef8 40%, #d8e4f0 70%, #e2ecf6 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+    }}>
+
+      {/* Ambient orbs */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
+        {[
+          { top: '-80px', left: '-100px',  size: 500, color: 'rgba(90,169,196,0.18)' },
+          { top: '60%',   right: '-80px',  size: 420, color: 'rgba(126,200,227,0.14)' },
+          { bottom: '-60px', left: '30%',  size: 380, color: 'rgba(74,148,173,0.12)' },
+        ].map((o, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            width:  o.size,
+            height: o.size,
+            borderRadius: '50%',
+            background: o.color,
+            filter: 'blur(60px)',
+            top:    o.top,
+            left:   o.left,
+            right:  (o as { right?: string }).right,
+            bottom: (o as { bottom?: string }).bottom,
+          }} />
+        ))}
+      </div>
+
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 440 }}>
+
+        {/* Logo mark */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'var(--neu-bg, #e6ecf3)',
+            boxShadow: '6px 6px 16px #c3cdd8, -6px -6px 16px #ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 26,
+          }}>
+            ◈
+          </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
-          <h2 className="text-xl font-bold text-white mb-1">Welcome back</h2>
-          <p className="text-slate-400 text-sm mb-8">Sign in to your workspace</p>
+        {/* Card */}
+        <div style={{
+          background: '#e6ecf3',
+          borderRadius: 28,
+          boxShadow: '10px 10px 28px #c3cdd8, -10px -10px 28px #ffffff',
+          padding: '40px 36px',
+        }}>
 
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-3 mb-6 flex items-start gap-2">
-              <span className="mt-0.5">⚠</span>
-              <span>{error}</span>
-            </div>
-          )}
+          {/* Heading */}
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <h1 style={{
+              fontSize: 26,
+              fontWeight: 800,
+              color: '#1a2635',
+              marginBottom: 6,
+              letterSpacing: '-0.3px',
+            }}>
+              Welcome back
+            </h1>
+            <p style={{ fontSize: 13, color: '#8096aa' }}>
+              Sign in to your AXIS workspace
+            </p>
+          </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
-              <input
-                {...register('email')}
-                type="email"
-                placeholder="you@company.com"
-                className={`w-full bg-slate-800 border text-white placeholder-slate-500 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-1 transition ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-700 focus:border-indigo-500 focus:ring-indigo-500'}`}
-              />
-              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-slate-300">Password</label>
-                <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition">Forgot password?</a>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#4a5e72', letterSpacing: '0.6px', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                Email
+              </label>
+              <div style={{
+                background: '#e6ecf3',
+                borderRadius: 30,
+                boxShadow: 'inset 6px 6px 14px #c3cdd8, inset -6px -6px 14px #ffffff',
+                padding: '12px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}>
+                <span style={{ fontSize: 14, color: '#8096aa' }}>✉</span>
+                <input
+                  {...register('email')}
+                  type="email"
+                  placeholder="you@company.com"
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: 13,
+                    color: '#1a2635',
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}
+                />
               </div>
-              <input
-                {...register('password')}
-                type="password"
-                placeholder="••••••••"
-                className={`w-full bg-slate-800 border text-white placeholder-slate-500 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-1 transition ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-700 focus:border-indigo-500 focus:ring-indigo-500'}`}
-              />
-              {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>}
+              {errors.email && (
+                <p style={{ fontSize: 11, color: '#b92c2c', marginTop: 4, paddingLeft: 12 }}>
+                  {errors.email.message}
+                </p>
+              )}
             </div>
 
+            {/* Password */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#4a5e72', letterSpacing: '0.6px', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                Password
+              </label>
+              <div style={{
+                background: '#e6ecf3',
+                borderRadius: 30,
+                boxShadow: 'inset 6px 6px 14px #c3cdd8, inset -6px -6px 14px #ffffff',
+                padding: '12px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}>
+                <span style={{ fontSize: 14, color: '#8096aa' }}>🔒</span>
+                <input
+                  {...register('password')}
+                  type={showPass ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: 13,
+                    color: '#1a2635',
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass((p) => !p)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: '#8096aa',
+                    padding: 0,
+                    lineHeight: 1,
+                  }}
+                >
+                  {showPass ? '🙈' : '👁'}
+                </button>
+              </div>
+              {errors.password && (
+                <p style={{ fontSize: 11, color: '#b92c2c', marginTop: 4, paddingLeft: 12 }}>
+                  {errors.password.message}
+                </p>
+              )}
+            </div>
+
+            {/* API error */}
+            {error && (
+              <div style={{
+                background: '#fdeaea',
+                border: '1px solid #f5c6c6',
+                borderRadius: 12,
+                padding: '10px 14px',
+                fontSize: 12,
+                color: '#b92c2c',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                ⚠ {error}
+              </div>
+            )}
+
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 text-sm transition-all duration-200 flex items-center justify-center gap-2"
+              style={{
+                marginTop: 8,
+                background: loading ? '#8096aa' : '#5aa9c4',
+                color: 'white',
+                border: 'none',
+                borderRadius: 30,
+                padding: '14px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: loading
+                  ? 'none'
+                  : '4px 4px 10px #c8d2de, -4px -4px 10px #ffffff',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
             >
-              {loading && (
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-              )}
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? (
+                <>
+                  <div style={{
+                    width: 14, height: 14,
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    borderTop: '2px solid white',
+                    borderRadius: '50%',
+                    animation: 'neu-spin 0.75s linear infinite',
+                  }} />
+                  Signing in...
+                </>
+              ) : 'Sign In →'}
             </button>
           </form>
 
-          <p className="text-center text-slate-400 text-sm mt-6">
+          <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: '#8096aa' }}>
             Don't have an account?{' '}
-            <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-medium transition">
-              Create workspace
+            <Link to="/register" style={{ color: '#5aa9c4', fontWeight: 700, textDecoration: 'none' }}>
+              Create one
             </Link>
           </p>
         </div>
+
+        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 11, color: '#8096aa' }}>
+          AXIS Central Intelligence System
+        </p>
       </div>
     </div>
   )

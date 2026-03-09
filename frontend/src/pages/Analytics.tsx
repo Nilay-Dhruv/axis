@@ -1,7 +1,5 @@
 import { type ReactElement } from 'react'
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   AreaChart,

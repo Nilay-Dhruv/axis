@@ -1,58 +1,45 @@
-import { useState, useEffect } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { useState, useEffect, type ReactElement } from 'react'
+import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 
-export default function MainLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const location = useLocation()
+export default function MainLayout(): ReactElement {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Close sidebar on route change (mobile)
   useEffect(() => {
-    setSidebarOpen(false)
-  }, [location.pathname])
-
-  // Close sidebar on large screen resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) setSidebarOpen(false)
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    const handler = () => setSidebarOpen(window.innerWidth >= 1024)
+    handler()
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
   }, [])
 
   return (
-    <div
-      style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-base)' }}
-    >
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #dde8f4 0%, #e8eef8 40%, #d8e4f0 70%, #e2ecf6 100%)',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+    }}>
+
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main content area */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          minWidth: 0,
-        }}
-      >
-        <Header
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          isSidebarOpen={sidebarOpen}
-        />
+      {/* Main content */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        marginLeft: sidebarOpen ? 260 : 0,
+        transition: 'margin-left 0.3s ease',
+        minWidth: 0,
+      }}>
+        <Header onMenuClick={() => setSidebarOpen((o) => !o)} />
 
-        {/* Page content */}
-        <main
-          style={{
-            flex: 1,
-            overflow: 'auto',
-            padding: '24px',
-          }}
-          className="animate-fade-slide"
-          key={location.pathname}
-        >
+        <main style={{
+          flex: 1,
+          padding: '28px 28px',
+          overflowY: 'auto',
+        }}>
           <Outlet />
         </main>
       </div>
