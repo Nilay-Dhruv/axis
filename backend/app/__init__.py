@@ -32,6 +32,9 @@ def create_app(config_class=Config):
     from .routes.departments import departments_bp
     app.register_blueprint(departments_bp, url_prefix='/api/v1/departments')
 
+    from .routes.activities import activities_bp
+    app.register_blueprint(activities_bp, url_prefix='/api/v1/activities')
+
     from .middleware.error_handler import register_error_handlers
     register_error_handlers(app)
 
