@@ -1,8 +1,9 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, g, request, jsonify
 from flask_jwt_extended import (
     jwt_required, get_jwt_identity, create_access_token
 )
 from app import limiter 
+from app.middleware.auth_middleware import jwt_required_custom
 from marshmallow import ValidationError
 from app.schemas.user_schema import RegisterSchema, LoginSchema
 from app.services.auth_service import AuthService
@@ -144,4 +145,97 @@ def get_me():
         "success": True,
         "data": {"user": user.to_dict()},
         "message": "User retrieved successfully"
+    }), 200
+
+
+
+@auth_bp.route('/profile', methods=['GET'])
+@jwt_required_custom
+def get_profile():
+    """Get current user profile"""
+    user = g.current_user
+    return jsonify({
+        'success': True,
+        'data': {
+            'user': {
+                'id': str(user.id),
+                'email': user.email,
+                'full_name': user.full_name,
+                'subscription_tier': user.subscription_tier,
+                'organization_id': str(user.organization_id) if user.organization_id else None,
+                'is_active': user.is_active,
+            }
+        },
+        'message': 'Profile retrieved'
+    }), 200
+
+
+@auth_bp.route('/profile', methods=['PUT'])
+@jwt_required_custom
+def update_profile():
+    """Update name only — email is immutable"""
+    user = g.current_user
+    body = request.get_json() or {}
+    full_name = body.get('full_name', '').strip()
+
+    if not full_name or len(full_name) < 2:
+        return jsonify({
+            'success': False,
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'Name must be at least 2 characters'}
+        }), 422
+
+    user.full_name = full_name
+    from app import db
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {'full_name': user.full_name},
+        'message': 'Profile updated successfully'
+    }), 200
+
+
+@auth_bp.route('/change-password', methods=['POST'])
+@jwt_required_custom
+def change_password():
+    """Change password — requires current password"""
+    user = g.current_user
+    body = request.get_json() or {}
+
+    current_password = body.get('current_password', '')
+    new_password     = body.get('new_password', '')
+    confirm_password = body.get('confirm_password', '')
+
+    if not user.check_password(current_password):
+        return jsonify({
+            'success': False,
+            'error': {'code': 'INVALID_PASSWORD', 'message': 'Current password is incorrect'}
+        }), 400
+
+    if len(new_password) < 8:
+        return jsonify({
+            'success': False,
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'New password must be at least 8 characters'}
+        }), 422
+
+    if new_password != confirm_password:
+        return jsonify({
+            'success': False,
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'Passwords do not match'}
+        }), 422
+
+    if new_password == current_password:
+        return jsonify({
+            'success': False,
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'New password must differ from current'}
+        }), 422
+
+    user.set_password(new_password)
+    from app import db
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {},
+        'message': 'Password changed successfully'
     }), 200
