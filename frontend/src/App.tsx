@@ -7,6 +7,7 @@ import Departments from './pages/Departments'
 import ComingSoon from './pages/ComingSoon'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import PublicRoute from './components/common/PublicRoute'
+import Activities from './pages/Activities'
 
 export default function App() {
   return (
@@ -24,7 +25,7 @@ export default function App() {
         >
           <Route path="/dashboard"   element={<Dashboard />} />
           <Route path="/departments" element={<Departments />} />
-          <Route path="/activities"  element={<ComingSoon />} />
+          <Route path="/activities" element={<Activities />} />
           <Route path="/outcomes"    element={<ComingSoon />} />
           <Route path="/signals"     element={<ComingSoon />} />
           <Route path="/analytics"   element={<ComingSoon />} />

@@ -64,3 +64,34 @@ export interface DepartmentsState {
   searchQuery: string
   filterType: string
 }
+
+export interface ActivityLog {
+  id: string
+  activity_id: string
+  executed_by: string
+  department_id: string
+  status: 'completed' | 'failed' | 'pending'
+  notes: string | null
+  data: Record<string, unknown>
+  result: Record<string, unknown>
+  executed_at: string
+}
+
+export interface ActivityDetail {
+  activity: Activity
+  logs: ActivityLog[]
+  log_count: number
+}
+
+export interface ActivitiesState {
+  list: Activity[]
+  recentLogs: ActivityLog[]
+  selected: ActivityDetail | null
+  loading: boolean
+  executing: boolean
+  error: string | null
+  executeError: string | null
+  searchQuery: string
+  filterDept: string
+  filterType: string
+}
