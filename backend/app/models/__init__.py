@@ -2,6 +2,7 @@ from .user import User
 from .organization import Organization
 from .department import Department
 from .role import Role
+from .user_role import UserRole
 from .activity import Activity
 from .activity_log import ActivityLog
 from .outcome import Outcome

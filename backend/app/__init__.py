@@ -38,6 +38,9 @@ def create_app(config_class=Config):
     from .routes.outcomes import outcomes_bp
     app.register_blueprint(outcomes_bp, url_prefix='/api/v1/outcomes')
 
+    from .routes.roles import roles_bp
+    app.register_blueprint(roles_bp, url_prefix='/api/v1/roles')
+
     from .middleware.error_handler import register_error_handlers
     register_error_handlers(app)
 
