@@ -1,632 +1,550 @@
-import { type ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import {
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { useAnalytics } from '../hooks/useAnalytics'
-import { useOutcomes } from '../hooks/useOutcomes'
-import { useActivities } from '../hooks/useActivities'
-import { useDepartments } from '../hooks/useDepartments'
-import ChartCard from '../components/analytics/ChartCard'
-import HealthGauge from '../components/analytics/HealthGauge'
-import MetricTile from '../components/analytics/MetricTile'
+import analyticsService from '../services/analyticsService'
+import type { AnalyticsOverview } from '../services/analyticsService'
+import type { AxiosError } from 'axios'
 
-// ─── Recharts custom tooltip ───────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-interface TooltipProps {
-  active?: boolean
-  payload?: { color: string; name: string; value: number }[]
-  label?: string
+const NEU_ACCENT   = '#5aa9c4'
+const NEU_ACCENT2  = '#7ec8e3'
+const COLOR_GREEN  = '#468c64'
+const COLOR_YELLOW = '#c4a45a'
+const COLOR_RED    = '#b44646'
+const COLOR_GRAY   = '#8096aa'
+
+const STATUS_COLORS: Record<string, string> = {
+  achieved:    COLOR_GREEN,
+  on_track:    NEU_ACCENT,
+  at_risk:     COLOR_RED,
+  not_started: COLOR_GRAY,
 }
 
-function ChartTooltip({ active, payload, label }: TooltipProps): ReactElement | null {
+const SIGNAL_COLORS: Record<string, string> = {
+  normal:   COLOR_GREEN,
+  warning:  COLOR_YELLOW,
+  critical: COLOR_RED,
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+interface PanelProps {
+  title:    string
+  subtitle?: string
+  children: ReactElement | ReactElement[]
+  style?:   React.CSSProperties
+}
+
+function Panel({ title, subtitle, children, style }: PanelProps): ReactElement {
+  return (
+    <div
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: 20,
+        boxShadow: 'var(--neu-shadow-out)',
+        padding: '24px 28px',
+        ...style,
+      }}
+    >
+      <div style={{ marginBottom: 20 }}>
+        <div
+          style={{
+            fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 11,
+            letterSpacing: '0.15em', color: 'var(--neu-text-light)',
+            textTransform: 'uppercase', marginBottom: 3,
+          }}
+        >
+          {title}
+        </div>
+        {subtitle && (
+          <div style={{ fontSize: 12, color: 'var(--neu-text-light)' }}>{subtitle}</div>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+interface StatPillProps {
+  label: string
+  value: number
+  color: string
+}
+
+function StatPill({ label, value, color }: StatPillProps): ReactElement {
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px', borderRadius: 10, marginBottom: 8,
+        background: `${color}12`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <span style={{ fontSize: 12, color: 'var(--neu-text-mid)', fontWeight: 600, textTransform: 'capitalize' }}>
+          {label.replace('_', ' ')}
+        </span>
+      </div>
+      <span style={{ fontFamily: 'Rajdhani', fontWeight: 800, fontSize: 18, color }}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+interface SkeletonPanelProps { height?: number }
+
+function SkeletonPanel({ height = 280 }: SkeletonPanelProps): ReactElement {
+  return (
+    <div
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: 20,
+        boxShadow: 'var(--neu-shadow-out)',
+        height,
+        animation: 'pulse 1.4s ease-in-out infinite',
+      }}
+    />
+  )
+}
+
+// Custom tooltip for charts
+function NeuTooltip({ active, payload, label }: {
+  active?: boolean
+  payload?: { name: string; value: number; color: string }[]
+  label?: string
+}): ReactElement | null {
   if (!active || !payload?.length) return null
   return (
     <div
       style={{
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border-bright)',
-        borderRadius: 6,
-        padding: '8px 12px',
-        fontSize: 11,
-        fontFamily: 'Rajdhani',
+        background: '#e6ecf3',
+        borderRadius: 12,
+        boxShadow: '6px 6px 16px #c3cdd8, -6px -6px 16px #ffffff',
+        padding: '10px 14px',
+        fontSize: 12,
+        color: 'var(--neu-text-dark)',
       }}
     >
-      <div style={{ color: 'var(--text-muted)', marginBottom: 4, letterSpacing: '0.08em' }}>
-        {label}
-      </div>
+      {label && <div style={{ fontFamily: 'Rajdhani', fontWeight: 700, marginBottom: 6, color: 'var(--neu-text-light)', fontSize: 10, letterSpacing: '0.1em' }}>{label}</div>}
       {payload.map((p) => (
-        <div
-          key={p.name}
-          style={{ color: p.color, fontWeight: 700, letterSpacing: '0.06em' }}
-        >
-          {p.name}: {p.value}
+        <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+          <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{p.name}:</span>
+          <span style={{ fontFamily: 'Rajdhani', fontWeight: 800 }}>{p.value}</span>
         </div>
       ))}
     </div>
   )
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
+// ─── Date range filter ────────────────────────────────────────────────────────
+
+type Range = '7d' | '14d' | '30d'
+
+interface RangeFilterProps {
+  value:    Range
+  onChange: (r: Range) => void
+}
+
+function RangeFilter({ value, onChange }: RangeFilterProps): ReactElement {
+  return (
+    <div
+      style={{
+        display: 'flex', gap: 4,
+        background: 'var(--neu-bg)',
+        boxShadow: 'var(--neu-shadow-in)',
+        borderRadius: 30, padding: 4,
+      }}
+    >
+      {(['7d', '14d', '30d'] as Range[]).map((r) => (
+        <button
+          key={r}
+          onClick={() => onChange(r)}
+          style={{
+            padding: '5px 14px', borderRadius: 26, border: 'none',
+            background: value === r ? 'var(--neu-bg)' : 'transparent',
+            boxShadow: value === r ? 'var(--neu-shadow-out)' : 'none',
+            color: value === r ? 'var(--neu-accent)' : 'var(--neu-text-light)',
+            fontSize: 11, fontFamily: 'Rajdhani', fontWeight: 700,
+            letterSpacing: '0.06em', cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          {r.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Analytics(): ReactElement {
-  const {
-    deptPerformance,
-    outcomeTrend,
-    activityExecTrend,
-    signalHealthTrend,
-    summary,
-    hasData,
-  } = useAnalytics()
+  const [data,    setData]    = useState<AnalyticsOverview | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+  const [range,   setRange]   = useState<Range>('30d')
 
-  // Ensure sibling slices are loaded
-  useOutcomes(true)
-  useActivities(true)
-  useDepartments()
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      try {
+        const res = await analyticsService.getOverview()
+        setData(res.data)
+      } catch (err) {
+        const e = err as AxiosError<{ error: { message: string } }>
+        setError(e.response?.data?.error?.message ?? 'Failed to load analytics')
+      } finally {
+        setLoading(false)
+      }
+    }
+    void load()
+  }, [])
 
-  const noData = !hasData
+  // Filter trend data by selected range
+  const trendData = (() => {
+    if (!data) return []
+    const days = range === '7d' ? 7 : range === '14d' ? 14 : 30
+    return data.activity_trend.slice(-days).map((p) => ({
+      ...p,
+      day: new Date(p.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    }))
+  })()
+
+  // Pie data for outcome status
+  const outcomePieData = data
+    ? Object.entries(data.outcome_status).map(([key, val]) => ({
+        name:  key,
+        value: val,
+        color: STATUS_COLORS[key] ?? COLOR_GRAY,
+      })).filter((d) => d.value > 0)
+    : []
+
+  // Pie data for signal distribution
+  const signalPieData = data
+    ? Object.entries(data.signal_dist).map(([key, val]) => ({
+        name:  key,
+        value: val,
+        color: SIGNAL_COLORS[key] ?? COLOR_GRAY,
+      })).filter((d) => d.value > 0)
+    : []
 
   return (
-    <div className="animate-fade-slide">
+    <div className="neu-fade-up">
 
-      {/* ── Page Header ──────────────────────────────────── */}
-      <div style={{ marginBottom: 24 }}>
-        <div
-          style={{
-            fontSize: 11,
-            fontFamily: 'Rajdhani',
-            fontWeight: 700,
-            letterSpacing: '0.2em',
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            marginBottom: 4,
-          }}
-        >
-          Command Intelligence
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          Organization-wide performance analytics and signal trends
-        </div>
-      </div>
-
-      {/* ── Empty state ───────────────────────────────────── */}
-      {noData && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '64px 24px',
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-          }}
-        >
-          <div style={{ fontSize: 48, opacity: 0.15, marginBottom: 16 }}>◈</div>
+      {/* ── Header ── */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'flex-start',
+          justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12,
+        }}
+      >
+        <div>
           <div
             style={{
-              fontFamily: 'Rajdhani',
-              fontWeight: 700,
-              fontSize: 18,
-              color: 'var(--text-primary)',
-              textTransform: 'uppercase',
-              marginBottom: 8,
+              fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 11,
+              letterSpacing: '0.2em', color: 'var(--neu-text-light)',
+              textTransform: 'uppercase', marginBottom: 4,
             }}
           >
-            No Data Yet
+            Intelligence Overview
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Visit Departments, Outcomes, and Activities first to seed data.
+          <div style={{ fontSize: 13, color: 'var(--neu-text-mid)' }}>
+            Live performance data across all departments
           </div>
+        </div>
+        <RangeFilter value={range} onChange={setRange} />
+      </div>
+
+      {/* ── Error ── */}
+      {error && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 10, marginBottom: 24,
+          background: 'rgba(180,70,70,0.08)',
+          border: '1px solid rgba(180,70,70,0.25)',
+          color: '#b44646', fontSize: 12,
+        }}>
+          ⚠ {error}
         </div>
       )}
 
-      {!noData && (
-        <>
-          {/* ── Top Metric Tiles ─────────────────────────── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 10,
-              marginBottom: 20,
-            }}
-          >
-            <MetricTile
-              label="Outcomes Tracked"
-              value={summary.total_outcomes}
-              sub={`${summary.achieved_outcomes} achieved`}
-              color="var(--cyan)"
-              trend="up"
-              trendValue={`${summary.achieved_outcomes} done`}
-            />
-            <MetricTile
-              label="At Risk"
-              value={summary.at_risk_outcomes}
-              sub="need attention"
-              color={summary.at_risk_outcomes > 0 ? 'var(--danger)' : 'var(--success)'}
-              trend={summary.at_risk_outcomes > 0 ? 'down' : 'flat'}
-              trendValue={summary.at_risk_outcomes > 0 ? 'Action needed' : 'On track'}
-            />
-            <MetricTile
-              label="Critical Signals"
-              value={summary.critical_signals}
-              sub={`${summary.warning_signals} warnings`}
-              color={summary.critical_signals > 0 ? 'var(--danger)' : 'var(--success)'}
-              trend={summary.critical_signals > 0 ? 'down' : 'up'}
-              trendValue={summary.critical_signals > 0 ? 'Investigate' : 'Healthy'}
-            />
-            <MetricTile
-              label="Active Activities"
-              value={summary.total_activities}
-              sub="across all depts"
-              color="var(--warning)"
-              trend="up"
-              trendValue="All depts"
-            />
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <SkeletonPanel height={300} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <SkeletonPanel height={260} />
+            <SkeletonPanel height={260} />
           </div>
-
-          {/* ── Health Gauge + Outcome Trend ─────────────── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '220px 1fr',
-              gap: 16,
-              marginBottom: 16,
-            }}
-          >
-            {/* Health gauge */}
-            <div
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderTop: '2px solid var(--cyan)',
-                borderRadius: 10,
-                padding: '14px 12px',
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 700,
-                  fontSize: 11,
-                  letterSpacing: '0.15em',
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  marginBottom: 8,
-                  textAlign: 'center',
-                }}
-              >
-                Org Health
-              </div>
-              <HealthGauge score={summary.org_health_score} />
-            </div>
-
-            {/* Outcome completion trend */}
-            <ChartCard
-              title="Outcome Completion Trend"
-              subtitle="8-week rolling completion rate %"
-              accent="var(--cyan)"
-              height={200}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={outcomeTrend} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="cyanGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#00d4ff" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#00d4ff" stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    domain={[0, 100]}
-                    tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    name="Completion %"
-                    stroke="#00d4ff"
-                    strokeWidth={2}
-                    fill="url(#cyanGrad)"
-                    dot={false}
-                    activeDot={{ r: 4, fill: '#00d4ff', stroke: 'var(--bg-elevated)', strokeWidth: 2 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <SkeletonPanel height={240} />
+            <SkeletonPanel height={240} />
           </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* ── Activity Executions + Signal Health ──────── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 16,
-              marginBottom: 16,
-            }}
+          {/* ── Row 1: Activity Trend (full width) ── */}
+          <Panel
+            title="Activity Execution Trend"
+            subtitle={`Last ${range === '7d' ? '7' : range === '14d' ? '14' : '30'} days — completed vs failed executions`}
           >
-            {/* Activity execution bar chart */}
-            <ChartCard
-              title="Activity Executions"
-              subtitle="Daily completed vs failed — 14 days"
-              accent="var(--success)"
-              height={220}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={activityExecTrend}
-                  margin={{ top: 4, right: 8, left: -24, bottom: 0 }}
-                  barSize={8}
-                  barGap={2}
-                >
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 9, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={1}
-                  />
-                  <YAxis
-                    tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend
-                    wrapperStyle={{
-                      fontSize: 10,
-                      fontFamily: 'Rajdhani',
-                      color: 'var(--text-muted)',
-                      paddingTop: 4,
-                    }}
-                  />
-                  <Bar dataKey="completed" name="Completed" fill="#00cc88" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="failed"    name="Failed"    fill="#ff4455" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            {/* Signal health stacked area */}
-            <ChartCard
-              title="Signal Health Trend"
-              subtitle="Normal / Warning / Critical — 14 days"
-              accent="var(--warning)"
-              height={220}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={signalHealthTrend}
-                  margin={{ top: 4, right: 8, left: -24, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="normGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#00cc88" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#00cc88" stopOpacity={0.05} />
-                    </linearGradient>
-                    <linearGradient id="warnGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#ffaa00" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.05} />
-                    </linearGradient>
-                    <linearGradient id="critGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#ff4455" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#ff4455" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 9, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={1}
-                  />
-                  <YAxis
-                    tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend
-                    wrapperStyle={{
-                      fontSize: 10,
-                      fontFamily: 'Rajdhani',
-                      color: 'var(--text-muted)',
-                      paddingTop: 4,
-                    }}
-                  />
-                  <Area type="monotone" dataKey="normal"   name="Normal"   stroke="#00cc88" fill="url(#normGrad)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="warning"  name="Warning"  stroke="#ffaa00" fill="url(#warnGrad)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="critical" name="Critical" stroke="#ff4455" fill="url(#critGrad)" strokeWidth={1.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          {/* ── Dept Performance ─────────────────────────── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 16,
-              marginBottom: 16,
-            }}
-          >
-            {/* Bar: outcomes per dept */}
-            <ChartCard
-              title="Outcomes by Department"
-              subtitle="Total · Achieved · At Risk"
-              accent="#8866ff"
-              height={240}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={deptPerformance}
-                  margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
-                  barSize={10}
-                  barGap={2}
-                >
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: 'Rajdhani' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend
-                    wrapperStyle={{
-                      fontSize: 10,
-                      fontFamily: 'Rajdhani',
-                      color: 'var(--text-muted)',
-                      paddingTop: 4,
-                    }}
-                  />
-                  <Bar dataKey="outcomes"  name="Total"    radius={[2, 2, 0, 0]}>
-                    {deptPerformance.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} opacity={0.7} />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="achieved"  name="Achieved" fill="#00cc88" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="at_risk"   name="At Risk"  fill="#ff4455" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            {/* Radar: dept performance scores */}
-            <ChartCard
-              title="Department Radar"
-              subtitle="Activities · Outcomes · Score"
-              accent="#ff6644"
-              height={240}
-            >
-              {deptPerformance.length < 3 ? (
-                <div
-                  style={{
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 28, opacity: 0.2 }}>◈</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Need 3+ departments for radar
-                  </div>
+            <>
+              {trendData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--neu-text-light)', fontSize: 13 }}>
+                  <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.3 }}>◎</div>
+                  No activity executions in this period
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={deptPerformance} margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
-                    <PolarGrid stroke="var(--border)" />
-                    <PolarAngleAxis
-                      dataKey="name"
-                      tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: 'Rajdhani' }}
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={trendData} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
+                    <defs>
+                      <linearGradient id="gradCompleted" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor={NEU_ACCENT}  stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={NEU_ACCENT}  stopOpacity={0}   />
+                      </linearGradient>
+                      <linearGradient id="gradFailed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor={COLOR_RED} stopOpacity={0.25} />
+                        <stop offset="95%" stopColor={COLOR_RED} stopOpacity={0}    />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d4e0ec" vertical={false} />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 10, fill: '#8096aa', fontFamily: 'Rajdhani', fontWeight: 600 }}
+                      axisLine={false} tickLine={false}
                     />
-                    <Radar
-                      name="Score"
-                      dataKey="score"
-                      stroke="var(--cyan)"
-                      fill="var(--cyan)"
-                      fillOpacity={0.15}
-                      strokeWidth={1.5}
+                    <YAxis
+                      tick={{ fontSize: 10, fill: '#8096aa', fontFamily: 'Rajdhani', fontWeight: 600 }}
+                      axisLine={false} tickLine={false} allowDecimals={false}
                     />
-                    <Radar
-                      name="Activities"
-                      dataKey="activities"
-                      stroke="#8866ff"
-                      fill="#8866ff"
-                      fillOpacity={0.1}
-                      strokeWidth={1.5}
-                    />
-                    <Tooltip content={<ChartTooltip />} />
+                    <Tooltip content={<NeuTooltip />} />
                     <Legend
-                      wrapperStyle={{
-                        fontSize: 10,
-                        fontFamily: 'Rajdhani',
-                        color: 'var(--text-muted)',
-                      }}
+                      wrapperStyle={{ fontSize: 11, fontFamily: 'Rajdhani', fontWeight: 700, paddingTop: 12 }}
                     />
-                  </RadarChart>
+                    <Area
+                      type="monotone" dataKey="completed" name="Completed"
+                      stroke={NEU_ACCENT} strokeWidth={2}
+                      fill="url(#gradCompleted)" dot={false} activeDot={{ r: 4 }}
+                    />
+                    <Area
+                      type="monotone" dataKey="failed" name="Failed"
+                      stroke={COLOR_RED} strokeWidth={2}
+                      fill="url(#gradFailed)" dot={false} activeDot={{ r: 4 }}
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               )}
-            </ChartCard>
+            </>
+          </Panel>
+
+          {/* ── Row 2: Dept Performance + Outcome Status ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr)', gap: 20 }}>
+
+            {/* Department performance bar chart */}
+            <Panel title="Department Performance" subtitle="Average outcome progress by department">
+              <>
+                {(data?.dept_performance.length ?? 0) === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--neu-text-light)', fontSize: 13 }}>
+                    No department data
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart
+                      data={data?.dept_performance}
+                      layout="vertical"
+                      margin={{ top: 0, right: 16, bottom: 0, left: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#d4e0ec" horizontal={false} />
+                      <XAxis
+                        type="number" domain={[0, 100]}
+                        tick={{ fontSize: 10, fill: '#8096aa', fontFamily: 'Rajdhani', fontWeight: 600 }}
+                        axisLine={false} tickLine={false}
+                        tickFormatter={(v) => `${v}%`}
+                      />
+                      <YAxis
+                        type="category" dataKey="name" width={90}
+                        tick={{ fontSize: 10, fill: '#4a5e72', fontFamily: 'Rajdhani', fontWeight: 700 }}
+                        axisLine={false} tickLine={false}
+                      />
+                      <Tooltip
+                        content={<NeuTooltip />}
+                      />
+                      <Bar
+                        dataKey="avg_progress" name="Avg Progress"
+                        radius={[0, 6, 6, 0]} maxBarSize={18}
+                      >
+                        {data?.dept_performance.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={
+                              entry.avg_progress >= 75
+                                ? COLOR_GREEN
+                                : entry.avg_progress >= 40
+                                ? NEU_ACCENT
+                                : COLOR_YELLOW
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </>
+            </Panel>
+
+            {/* Outcome status breakdown */}
+            <Panel title="Outcome Status" subtitle="Distribution across all outcomes">
+              <>
+                {outcomePieData.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--neu-text-light)', fontSize: 13 }}>
+                    No outcomes yet
+                  </div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <PieChart>
+                        <Pie
+                          data={outcomePieData}
+                          cx="50%" cy="50%"
+                          innerRadius={42} outerRadius={64}
+                          paddingAngle={3} dataKey="value"
+                        >
+                          {outcomePieData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={<NeuTooltip />}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ marginTop: 8 }}>
+                      {outcomePieData.map((d) => (
+                        <StatPill key={d.name} label={d.name} value={d.value} color={d.color} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            </Panel>
           </div>
 
-          {/* ── Dept Score Leaderboard ────────────────────── */}
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              borderTop: '2px solid var(--cyan)',
-              borderRadius: 10,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                padding: '14px 18px',
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  letterSpacing: '0.08em',
-                  color: 'var(--text-primary)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Department Leaderboard
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                Ranked by composite performance score
-              </div>
-            </div>
+          {/* ── Row 3: Top Outcomes + Signal Distribution ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr)', gap: 20 }}>
 
-            <div style={{ padding: '8px 0' }}>
-              {[...deptPerformance]
-                .sort((a, b) => b.score - a.score)
-                .map((dept, idx) => {
-                  const barWidth = `${dept.score}%`
-                  const rankColor =
-                    idx === 0 ? '#ffd700' :
-                    idx === 1 ? '#c0c0c0' :
-                    idx === 2 ? '#cd7f32' :
-                    'var(--text-muted)'
-
-                  return (
-                    <div
-                      key={dept.name}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 14,
-                        padding: '10px 18px',
-                        borderBottom: '1px solid var(--border)',
-                      }}
-                    >
-                      {/* Rank */}
+            {/* Top outcomes progress */}
+            <Panel title="Top Outcomes by Progress" subtitle="Highest performing outcomes across departments">
+              <>
+                {(data?.top_outcomes.length ?? 0) === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--neu-text-light)', fontSize: 13 }}>
+                    No outcomes yet
+                  </div>
+                ) : (
+                  <div>
+                    {data?.top_outcomes.map((o, i) => (
                       <div
+                        key={i}
                         style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: '50%',
-                          background: idx < 3 ? `${rankColor}20` : 'var(--bg-elevated)',
-                          border: `1px solid ${idx < 3 ? rankColor : 'var(--border)'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 11,
-                          fontFamily: 'Rajdhani',
-                          fontWeight: 700,
-                          color: rankColor,
-                          flexShrink: 0,
+                          marginBottom: 16,
+                          paddingBottom: 16,
+                          borderBottom: i < (data.top_outcomes.length - 1) ? '1px solid var(--neu-divider)' : 'none',
                         }}
                       >
-                        {idx + 1}
-                      </div>
-
-                      {/* Dept dot + name */}
-                      <div
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          background: dept.color,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <div
-                        style={{
-                          fontFamily: 'Rajdhani',
-                          fontWeight: 700,
-                          fontSize: 13,
-                          letterSpacing: '0.06em',
-                          color: 'var(--text-primary)',
-                          textTransform: 'uppercase',
-                          width: 110,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {dept.name}
-                      </div>
-
-                      {/* Progress bar */}
-                      <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
+                          <span
+                            style={{
+                              fontSize: 12, fontWeight: 600, color: 'var(--neu-text-dark)',
+                              flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              paddingRight: 12,
+                            }}
+                          >
+                            {o.name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 13, fontFamily: 'Rajdhani', fontWeight: 800,
+                              color: o.progress >= 100
+                                ? COLOR_GREEN
+                                : o.progress >= 60
+                                ? NEU_ACCENT
+                                : COLOR_YELLOW,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {o.progress}%
+                          </span>
+                        </div>
                         <div
                           style={{
-                            height: '100%',
-                            width: barWidth,
-                            background: dept.color,
-                            borderRadius: 3,
-                            transition: 'width 0.6s ease',
-                            boxShadow: `0 0 6px ${dept.color}`,
+                            height: 6, borderRadius: 3,
+                            background: 'var(--neu-bg)',
+                            boxShadow: 'var(--neu-shadow-in)',
+                            overflow: 'hidden',
                           }}
-                        />
+                        >
+                          <div
+                            style={{
+                              height: '100%',
+                              width: `${o.progress}%`,
+                              borderRadius: 3,
+                              background: o.progress >= 100
+                                ? COLOR_GREEN
+                                : o.progress >= 60
+                                ? `linear-gradient(90deg, ${NEU_ACCENT}, ${NEU_ACCENT2})`
+                                : COLOR_YELLOW,
+                              transition: 'width 0.6s ease',
+                            }}
+                          />
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            </Panel>
 
-                      {/* Stats */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: 16,
-                          flexShrink: 0,
-                          fontSize: 11,
-                          color: 'var(--text-muted)',
-                          fontFamily: 'Rajdhani',
-                          fontWeight: 600,
-                        }}
-                      >
-                        <span>
-                          <span style={{ color: 'var(--text-secondary)' }}>{dept.outcomes}</span>
-                          {' '}outcomes
-                        </span>
-                        <span>
-                          <span style={{ color: 'var(--success)' }}>{dept.achieved}</span>
-                          {' '}done
-                        </span>
-                        <span>
-                          <span style={{ color: dept.color, fontSize: 14 }}>{dept.score}</span>
-                          {' '}pts
-                        </span>
-                      </div>
+            {/* Signal health distribution */}
+            <Panel title="Signal Health" subtitle="Current status distribution">
+              <>
+                {signalPieData.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--neu-text-light)', fontSize: 13 }}>
+                    No signals yet
+                  </div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <PieChart>
+                        <Pie
+                          data={signalPieData}
+                          cx="50%" cy="50%"
+                          innerRadius={42} outerRadius={64}
+                          paddingAngle={3} dataKey="value"
+                          startAngle={90} endAngle={-270}
+                        >
+                          {signalPieData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<NeuTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ marginTop: 8 }}>
+                      {signalPieData.map((d) => (
+                        <StatPill key={d.name} label={d.name} value={d.value} color={d.color} />
+                      ))}
                     </div>
-                  )
-                })}
-            </div>
+                  </>
+                )}
+              </>
+            </Panel>
           </div>
-        </>
+
+        </div>
       )}
     </div>
   )

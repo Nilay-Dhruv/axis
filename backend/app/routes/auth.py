@@ -318,3 +318,132 @@ def dashboard_summary():
         },
         'message': 'Dashboard summary retrieved'
     }), 200
+
+
+@auth_bp.route('/analytics/overview', methods=['GET'])
+@jwt_required_custom
+def analytics_overview():
+    """Comprehensive analytics data for the analytics page"""
+    from app import db
+    from app.models.department import Department
+    from app.models.activity import Activity
+    from app.models import ActivityLog
+    from app.models.outcome import Outcome
+    from app.models.signal import Signal
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    org_id = g.current_user.organization_id
+
+    # ── Activity trend: last 30 days grouped by day ──────────────────
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+    daily_logs = db.session.query(
+        func.date(ActivityLog.executed_at).label('day'),
+        func.count(ActivityLog.id).label('count'),
+        func.sum(
+            db.case((ActivityLog.status == 'completed', 1), else_=0)
+        ).label('completed'),
+        func.sum(
+            db.case((ActivityLog.status == 'failed', 1), else_=0)
+        ).label('failed'),
+    ).join(ActivityLog.activity).join(Activity.department)\
+     .filter(
+         Department.organization_id == org_id,
+         ActivityLog.executed_at >= thirty_days_ago,
+     ).group_by(func.date(ActivityLog.executed_at))\
+      .order_by(func.date(ActivityLog.executed_at)).all()
+
+    trend_data = [
+        {
+            'day':       str(row.day),
+            'total':     row.count,
+            'completed': int(row.completed or 0),
+            'failed':    int(row.failed    or 0),
+        }
+        for row in daily_logs
+    ]
+
+    # ── Department performance ────────────────────────────────────────
+    departments = db.session.query(Department)\
+        .filter(Department.organization_id == org_id).all()
+
+    dept_perf = []
+    for dept in departments:
+        outcomes = db.session.query(Outcome)\
+            .filter(Outcome.department_id == dept.id).all()
+        if not outcomes:
+            avg_prog = 0.0
+        else:
+            avg_prog = sum(
+                min((o.current_value / o.target_value) * 100, 100)
+                for o in outcomes
+                if o.target_value and o.target_value > 0
+            ) / len(outcomes)
+
+        activity_count = db.session.query(func.count(ActivityLog.id))\
+            .join(ActivityLog.activity).join(Activity.department)\
+            .filter(
+                Department.id == dept.id,
+                ActivityLog.executed_at >= thirty_days_ago,
+            ).scalar() or 0
+
+        dept_perf.append({
+            'name':           dept.name,
+            'avg_progress':   round(avg_prog, 1),
+            'activity_count': activity_count,
+            'outcome_count':  len(outcomes),
+        })
+
+    # Sort by avg_progress desc
+    dept_perf.sort(key=lambda d: d['avg_progress'], reverse=True)
+
+    # ── Outcome status breakdown ──────────────────────────────────────
+    all_outcomes = db.session.query(Outcome).join(Department)\
+        .filter(Department.organization_id == org_id).all()
+
+    outcome_status = {
+        'achieved':    sum(1 for o in all_outcomes if o.status == 'achieved'),
+        'on_track':    sum(1 for o in all_outcomes if o.status == 'on_track'),
+        'at_risk':     sum(1 for o in all_outcomes if o.status == 'at_risk'),
+        'not_started': sum(1 for o in all_outcomes if o.status == 'not_started'),
+    }
+
+    # ── Signal distribution ───────────────────────────────────────────
+    all_signals = db.session.query(Signal).join(Outcome).join(Department)\
+        .filter(Department.organization_id == org_id).all()
+
+    signal_dist = {
+        'normal':   sum(1 for s in all_signals if s.status == 'normal'),
+        'warning':  sum(1 for s in all_signals if s.status == 'warning'),
+        'critical': sum(1 for s in all_signals if s.status == 'critical'),
+    }
+
+    # ── Top outcomes by progress ──────────────────────────────────────
+    top_outcomes = sorted(
+        [
+            {
+                'name':     o.name,
+                'progress': round(
+                    min((o.current_value / o.target_value) * 100, 100), 1
+                ) if o.target_value and o.target_value > 0 else 0,
+                'status': o.status,
+                'unit':   o.unit or '',
+            }
+            for o in all_outcomes
+        ],
+        key=lambda x: x['progress'],
+        reverse=True,
+    )[:6]
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'activity_trend':   trend_data,
+            'dept_performance': dept_perf,
+            'outcome_status':   outcome_status,
+            'signal_dist':      signal_dist,
+            'top_outcomes':     top_outcomes,
+        },
+        'message': 'Analytics overview retrieved',
+    }), 200
