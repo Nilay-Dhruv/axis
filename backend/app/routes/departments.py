@@ -1,4 +1,9 @@
 from flask import Blueprint, request, jsonify, g
+from flask_jwt_extended import jwt_required
+from app.models import Department
+from app.models.activity import Activity
+from app.models.outcome import Outcome
+from app.models.signal import Signal
 from marshmallow import ValidationError
 from app.schemas.department_schema import DepartmentCreateSchema, DepartmentUpdateSchema
 from app.services.department_service import DepartmentService
@@ -212,3 +217,82 @@ def seed_departments(department_id: str):
         'data': {'departments': [d.to_dict() for d in depts]},
         'message': f'Seeded {len(depts)} departments'
     }), 201
+
+
+
+
+@departments_bp.route('/<dept_id>/detail', methods=['GET'])
+@jwt_required(optional=True)
+def department_detail(dept_id):
+
+    dept = Department.query.filter_by(id=dept_id).first()
+
+    if not dept:
+        return jsonify({'error': 'Department not found'}), 404
+
+    # Outcomes
+    outcomes = Outcome.query.filter_by(department_id=dept.id).all()
+
+    # Signals
+    signals = Signal.query.join(Outcome).filter(
+        Outcome.department_id == dept.id
+    ).all()
+
+    # Activities
+    activities = Activity.query.filter_by(department_id=dept.id).all()
+
+    # Stats
+    outcome_count = len(outcomes)
+    signal_count = len(signals)
+    activity_count = len(activities)
+
+    avg_progress = 0
+    if outcomes:
+        total = sum(float(o.current_value or 0) for o in outcomes)
+        avg_progress = round(total / len(outcomes), 2)
+
+    # Outcome status breakdown
+    breakdown = {}
+    for o in outcomes:
+        breakdown[o.status] = breakdown.get(o.status, 0) + 1
+
+    # Recent activities
+    recent_activities = [
+        {
+            "id": str(a.id),
+            "title": a.name,
+            "status": "completed",   # default placeholder
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        }
+        for a in activities[:6]
+    ]
+
+    # Outcomes list
+    outcome_cards = [
+        {
+            "id": str(o.id),
+            "title": o.name,
+            "status": o.status,
+            "progress": float(o.current_value or 0)
+        }
+        for o in outcomes
+    ]
+
+    return jsonify({
+        "department": {
+        "id": str(dept.id),
+        "name": dept.name,
+        "description": getattr(dept, "description", None),
+        "head": getattr(dept, "head", None),
+        "created_at": dept.created_at.isoformat() if getattr(dept, "created_at", None) else None
+        },
+        "stats": {
+            "outcome_count": outcome_count,
+            "signal_count": signal_count,
+            "activity_count": activity_count,
+            "avg_progress": avg_progress,
+            "outcome_status_breakdown": breakdown
+        },
+        "recent_activities": recent_activities,
+        "outcomes": outcome_cards
+    }), 200

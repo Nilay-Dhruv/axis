@@ -17,6 +17,12 @@ import Automations from './pages/Automations'
 import Decisions   from './pages/Decisions'
 import Simulations from './pages/Simulations'
 import NotFound from './pages/NotFound'
+import ActivityLogs from './pages/ActivityLogs';
+import OutcomeDetail from './pages/OutcomeDetail';
+import SignalDetail from './pages/SignalDetail';
+import DepartmentDetail from './pages/DepartmentDetail';
+import UserManagement from './pages/UserManagement';
+import AuditLog from './pages/AuditLog';
 
 export default function App() {
   return (
@@ -43,6 +49,12 @@ export default function App() {
           <Route path="/simulations" element={<Simulations />} />
           <Route path="/roles" element={<Roles />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/activity-logs" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
+          <Route path="/outcomes/:id" element={<OutcomeDetail />} />
+          <Route path="/signals/:id" element={<SignalDetail />} />
+          <Route path="/departments/:id" element={<DepartmentDetail />} />
+          <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/admin/audit-log" element={<AuditLog />} />
           <Route path="*" element={<NotFound />} />
         </Route>
 

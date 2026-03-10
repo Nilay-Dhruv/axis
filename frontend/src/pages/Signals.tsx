@@ -2,6 +2,7 @@ import { type ReactElement } from 'react'
 import { useOutcomes } from '../hooks/useOutcomes'
 import SignalGauge from '../components/outcomes/SignalGauge'
 import SkeletonCard from '../components/common/SkeletonCard'
+import { useNavigate } from 'react-router-dom'
 
 const STATUS_CONFIG = {
   normal:   { color: 'var(--success)', label: 'NORMAL',   icon: '◆' },
@@ -17,7 +18,7 @@ export default function Signals(): ReactElement {
 
   const criticalCount = allAlerts.filter((s) => s.status === 'critical').length
   const warningCount  = allAlerts.filter((s) => s.status === 'warning').length
-
+  const navigate = useNavigate();
   return (
     <div className="animate-fade-slide">
 
@@ -167,11 +168,16 @@ export default function Signals(): ReactElement {
                 .map((signal) => (
                   <div
                     key={signal.id}
+                    onClick={() => {
+                      if (!signal.id) return;
+                      navigate(`/signals/${signal.id}`);
+                    }}
                     style={{
                       background: 'var(--bg-surface)',
                       border: '1px solid rgba(255,68,85,0.3)',
                       borderRadius: 8,
                       padding: '14px 16px',
+                      cursor: 'pointer'
                     }}
                   >
                     <SignalGauge signal={signal} />

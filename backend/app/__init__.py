@@ -6,41 +6,65 @@ from flask_mail import Mail
 from flask_bcrypt import Bcrypt
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
 from .config import Config
 
 db = SQLAlchemy()
 jwt = JWTManager()
 mail = Mail()
 bcrypt = Bcrypt()
-limiter = Limiter(key_func=get_remote_address, default_limits=['200 per day', '50 per hour'])
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+
 
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # ── Extensions ─────────────────────────────
     db.init_app(app)
     jwt.init_app(app)
     bcrypt.init_app(app)
     limiter.init_app(app)
-    CORS(app, resources={r'/api/*': {'origins': app.config['FRONTEND_URL']}})
     mail.init_app(app)
 
-    # Blueprints
+    # ── CORS (allow frontend requests) ─────────
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": "*"}},  # allow all during development
+        supports_credentials=True
+    )
+
+    # ── Blueprints ─────────────────────────────
+
     from .routes.auth import auth_bp
-    app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
+    app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
 
     from .routes.departments import departments_bp
-    app.register_blueprint(departments_bp, url_prefix='/api/v1/departments')
+    app.register_blueprint(departments_bp, url_prefix="/api/v1/departments")
 
     from .routes.activities import activities_bp
-    app.register_blueprint(activities_bp, url_prefix='/api/v1/activities')
+    app.register_blueprint(activities_bp, url_prefix="/api/v1/activities")
 
     from .routes.outcomes import outcomes_bp
-    app.register_blueprint(outcomes_bp, url_prefix='/api/v1/outcomes')
+    app.register_blueprint(outcomes_bp, url_prefix="/api/v1/outcomes")
 
     from .routes.roles import roles_bp
-    app.register_blueprint(roles_bp, url_prefix='/api/v1/roles')
+    app.register_blueprint(roles_bp, url_prefix="/api/v1/roles")
 
+    # ✅ Signals routes
+    from .routes.signals import signals
+    app.register_blueprint(signals, url_prefix="/api/v1/signals")
+
+    # Admin + Search
+    from app.routes.search import search_bp
+    app.register_blueprint(search_bp)
+
+    from app.routes.admin import admin_bp
+    app.register_blueprint(admin_bp)
+
+    from app.models.audit_log import AuditLog
+
+    # ── Error Handlers ─────────────────────────
     from .middleware.error_handler import register_error_handlers
     register_error_handlers(app)
 

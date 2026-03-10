@@ -59,12 +59,18 @@ function SimBar({ label, baseline, simmed, unit }: SimDemoProps): ReactElement {
 
 export default function Simulations(): ReactElement {
   const [sliderValue, setSliderValue] = useState(20)
-
+  
   // Toy model: adjusting headcount slider changes simulated values
   const simRevenue  = Math.round(850 + sliderValue * 2.4)
   const simCost     = Math.round(320 + sliderValue * 4.1)
   const simCapacity = Math.round(60  + sliderValue * 0.9)
+  const token = localStorage.getItem("accessToken")
+  let isAdmin = false
 
+  if (token) {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    isAdmin = payload.role === "admin"
+  }
   return (
     <div className="neu-fade-up" style={{ maxWidth: 860, margin: '0 auto' }}>
 
@@ -101,7 +107,7 @@ export default function Simulations(): ReactElement {
         >
           ◑
         </div>
-
+        {!isAdmin && (
         <div
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -115,6 +121,7 @@ export default function Simulations(): ReactElement {
         >
           ◆ COMING SOON — PREMIUM
         </div>
+        )}
 
         <h1
           style={{
@@ -128,19 +135,21 @@ export default function Simulations(): ReactElement {
           Model "what if" scenarios against your real outcomes and signals before committing
           resources. See the projected impact of every decision before you make it.
         </p>
-
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+         {!isAdmin && (
           <button
             className="neu-btn-primary"
             style={{ minWidth: 160 }}
           >
             ◆ UPGRADE PLAN
           </button>
+          )}
           <button className="neu-btn-ghost">
             ← Back to Dashboard
           </button>
         </div>
       </div>
+    
 
       {/* Interactive demo */}
       <div

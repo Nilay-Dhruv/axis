@@ -5,6 +5,7 @@ import OutcomeCard from '../components/outcomes/OutcomeCard'
 import OutcomeDetail from '../components/outcomes/OutcomeDetail'
 import AlertBanner from '../components/outcomes/AlertBanner'
 import SkeletonCard from '../components/common/SkeletonCard'
+import { useNavigate } from 'react-router-dom';
 
 const STATUS_FILTERS = [
   { value: 'all',      label: 'All'      },
@@ -30,7 +31,6 @@ export default function Outcomes(): ReactElement {
     getDeptName,
     getDeptColor,
     getProgress,
-    loadById,
     clearDetail,
     search,
     filterByStatus,
@@ -39,17 +39,18 @@ export default function Outcomes(): ReactElement {
   } = useOutcomes(true)
 
   const { departments } = useDepartments()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [] = useState<string | null>(null)
+  const navigate = useNavigate();
 
-  const handleCardClick = (id: string) => {
-    if (selectedId === id) {
-      setSelectedId(null)
-      clearDetail()
-    } else {
-      setSelectedId(id)
-      loadById(id)
-    }
-  }
+  // const handleCardClick = (id: string) => {
+  //   if (selectedId === id) {
+  //     setSelectedId(null)
+  //     clearDetail()
+  //   } else {
+  //     setSelectedId(id)
+  //     loadById(id)
+  //   }
+  // }
 
   const deptIds = Object.keys(grouped)
 
@@ -410,8 +411,11 @@ export default function Outcomes(): ReactElement {
                           outcome={outcome}
                           deptColor={deptColor}
                           progress={getProgress(outcome)}
-                          onClick={handleCardClick}
-                          isSelected={selectedId === outcome.id}
+                          onClick={() => {
+                          const numId = Number(outcome.id);
+                          if (!outcome.id || isNaN(numId)) return;
+                          navigate(`/outcomes/${numId}`);
+                        }} isSelected={false}                          
                         />
                       ))}
                     </div>
@@ -430,7 +434,7 @@ export default function Outcomes(): ReactElement {
               deptColor={getDeptColor(selected.outcome.department_id)}
               progress={getProgress(selected.outcome)}
               onClose={() => {
-                setSelectedId(null)
+                // setSelectedId(null)
                 clearDetail()
               }}
               loading={detailLoading}

@@ -7,3 +7,4 @@ from .activity import Activity
 from .activity_log import ActivityLog
 from .outcome import Outcome
 from .signal import Signal
+from app.models.audit_log import AuditLog

@@ -1,4 +1,9 @@
+from datetime import datetime, timedelta
+
 from flask import Blueprint, request, jsonify, g
+from flask_jwt_extended import jwt_required
+from app.models.department import Department
+from app.models.outcome import Outcome
 from marshmallow import ValidationError
 from app.schemas.outcome_schema import (
     OutcomeCreateSchema, OutcomeUpdateSchema,
@@ -8,6 +13,8 @@ from app.services.outcome_service import OutcomeService, SignalService
 from app.services.department_service import DepartmentService
 from app.middleware.auth_middleware import jwt_required_custom
 import uuid
+from app.models.signal import Signal
+from app.models.department import Department
 
 outcomes_bp = Blueprint('outcomes', __name__)
 
@@ -255,182 +262,66 @@ def delete_outcome(outcome_id: str):
     }), 200
 
 
-# ── Signals ────────────────────────────────────────────────────────────────
 
-@outcomes_bp.route('/<outcome_id>/signals', methods=['GET'])
-@jwt_required_custom
-def get_signals(outcome_id: str):
-    user = g.current_user
+@outcomes_bp.route("/<outcome_id>/detail", methods=["GET", "OPTIONS"])
+@jwt_required(optional=True)
+def outcome_detail(outcome_id):
 
-    try:
-        out_uuid = uuid.UUID(outcome_id)
-    except ValueError:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'INVALID_ID', 'message': 'Invalid outcome ID'}
-        }), 400
+    # Allow CORS preflight
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
 
-    outcome = OutcomeService.get_by_id(out_uuid)
+    outcome = Outcome.query.filter_by(id=outcome_id).first()
+
     if not outcome:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'NOT_FOUND', 'message': 'Outcome not found'}
-        }), 404
+        return jsonify({"error": "Outcome not found"}), 404
 
-    dept = DepartmentService.get_by_id(outcome.department_id, user.organization_id)
-    if not dept:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}
-        }), 403
+    department = Department.query.get(outcome.department_id)
 
-    signals = OutcomeService.get_signals(out_uuid)
+    # calculate progress safely
+    progress = 0
+    if outcome.target_value and outcome.current_value:
+        progress = round(
+            (float(outcome.current_value) / float(outcome.target_value)) * 100,
+            2
+        )
+
+    # generate fake progress history (30 days)
+    today = datetime.utcnow()
+    progress_history = []
+
+    for i in range(29, -1, -1):
+        day = today - timedelta(days=i)
+
+        progress_history.append({
+            "date": day.strftime("%b %d"),
+            "progress": max(0, min(100, progress + (i % 5 - 2) * 2))
+        })
+
+    # linked signals
+    signals = Signal.query.filter_by(outcome_id=outcome.id).all()
+
+    linked_signals = []
+
+    for s in signals:
+        linked_signals.append({
+            "id": str(s.id),
+            "name": s.name,
+            "status": s.status,
+            "value": float(s.value) if s.value else None,
+            "created_at": s.created_at.isoformat() if s.created_at else None
+        })
 
     return jsonify({
-        'success': True,
-        'data': {
-            'signals': [s.to_dict() for s in signals],
-            'total': len(signals),
+        "outcome": {
+            "id": str(outcome.id),
+            "name": outcome.name,
+            "description": outcome.description,
+            "status": outcome.status,
+            "department": department.name if department else None,
+            "progress": progress,
+            "created_at": outcome.created_at.isoformat() if outcome.created_at else None
         },
-        'message': 'Signals retrieved'
-    }), 200
-
-
-@outcomes_bp.route('/<outcome_id>/signals', methods=['POST'])
-@jwt_required_custom
-def create_signal(outcome_id: str):
-    user = g.current_user
-
-    try:
-        out_uuid = uuid.UUID(outcome_id)
-        data = signal_create_schema.load(request.get_json() or {})
-    except (ValueError, ValidationError) as err:
-        msg = err.messages if hasattr(err, 'messages') else 'Invalid ID'
-        return jsonify({
-            'success': False,
-            'error': {'code': 'VALIDATION_ERROR', 'message': 'Invalid input', 'details': msg}
-        }), 422
-
-    outcome = OutcomeService.get_by_id(out_uuid)
-    if not outcome:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'NOT_FOUND', 'message': 'Outcome not found'}
-        }), 404
-
-    dept = DepartmentService.get_by_id(outcome.department_id, user.organization_id)
-    if not dept:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}
-        }), 403
-
-    signal = SignalService.create(
-        outcome_id=out_uuid,
-        name=data['name'],
-        value=data.get('value'),
-        threshold_min=data.get('threshold_min'),
-        threshold_max=data.get('threshold_max'),
-    )
-
-    return jsonify({
-        'success': True,
-        'data': {'signal': signal.to_dict()},
-        'message': 'Signal created successfully'
-    }), 201
-
-
-@outcomes_bp.route('/<outcome_id>/signals/<signal_id>', methods=['PUT'])
-@jwt_required_custom
-def update_signal(outcome_id: str, signal_id: str):
-    user = g.current_user
-
-    try:
-        out_uuid = uuid.UUID(outcome_id)
-        sig_uuid = uuid.UUID(signal_id)
-    except ValueError:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'INVALID_ID', 'message': 'Invalid ID'}
-        }), 400
-
-    outcome = OutcomeService.get_by_id(out_uuid)
-    if not outcome:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'NOT_FOUND', 'message': 'Outcome not found'}
-        }), 404
-
-    dept = DepartmentService.get_by_id(outcome.department_id, user.organization_id)
-    if not dept:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}
-        }), 403
-
-    signal = SignalService.get_by_id(sig_uuid)
-    if not signal or signal.outcome_id != out_uuid:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'NOT_FOUND', 'message': 'Signal not found'}
-        }), 404
-
-    try:
-        data = signal_update_schema.load(request.get_json() or {})
-    except ValidationError as err:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'VALIDATION_ERROR', 'message': 'Invalid input', 'details': err.messages}
-        }), 422
-
-    signal = SignalService.update(signal, data)
-
-    return jsonify({
-        'success': True,
-        'data': {'signal': signal.to_dict()},
-        'message': 'Signal updated successfully'
-    }), 200
-
-
-@outcomes_bp.route('/<outcome_id>/signals/<signal_id>', methods=['DELETE'])
-@jwt_required_custom
-def delete_signal(outcome_id: str, signal_id: str):
-    user = g.current_user
-
-    try:
-        out_uuid = uuid.UUID(outcome_id)
-        sig_uuid = uuid.UUID(signal_id)
-    except ValueError:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'INVALID_ID', 'message': 'Invalid ID'}
-        }), 400
-
-    outcome = OutcomeService.get_by_id(out_uuid)
-    if not outcome:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'NOT_FOUND', 'message': 'Outcome not found'}
-        }), 404
-
-    dept = DepartmentService.get_by_id(outcome.department_id, user.organization_id)
-    if not dept:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'FORBIDDEN', 'message': 'Access denied'}
-        }), 403
-
-    signal = SignalService.get_by_id(sig_uuid)
-    if not signal or signal.outcome_id != out_uuid:
-        return jsonify({
-            'success': False,
-            'error': {'code': 'NOT_FOUND', 'message': 'Signal not found'}
-        }), 404
-
-    SignalService.delete(signal)
-
-    return jsonify({
-        'success': True,
-        'data': {},
-        'message': 'Signal deleted successfully'
+        "progress_history": progress_history,
+        "linked_signals": linked_signals
     }), 200

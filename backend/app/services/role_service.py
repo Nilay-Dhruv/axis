@@ -123,33 +123,115 @@ TIER_HIERARCHY = {'free': 0, 'basic_premium': 1, 'premium': 2}
 
 class RoleService:
 
-    @staticmethod
-    def seed_default_roles(organization_id: uuid.UUID) -> list:
-        """Seed the 4 default system roles for an org if not present"""
-        existing = Role.query.filter_by(
-            organization_id=organization_id,
-            is_system=True
-        ).count()
-        if existing > 0:
-            return []
+    # @staticmethod
+    # def seed_default_roles(organization_id: uuid.UUID) -> list:
+    #     """Seed the 4 default system roles for an org if not present"""
+    #     existing = Role.query.filter_by(
+    #         organization_id=organization_id,
+    #         is_system=True
+    #     ).count()
+    #     if existing > 0:
+    #         return []
 
-        roles = []
-        for tmpl in DEFAULT_ROLES:
+    #     roles = []
+    #     for tmpl in DEFAULT_ROLES:
+    #         role = Role(
+    #             organization_id=organization_id,
+    #             name=tmpl['name'],
+    #             description=tmpl['description'],
+    #             permissions=tmpl['permissions'],
+    #             tier_required=tmpl['tier_required'],
+    #             is_default=tmpl['is_default'],
+    #             is_system=tmpl['is_system'],
+    #         )
+    #         db.session.add(role)
+    #         roles.append(role)
+
+    #     db.session.commit()
+    #     return roles
+    @staticmethod
+    def seed_default_roles(organization_id):
+        from app.models.role import Role
+        from app import db
+        from datetime import datetime
+
+        # prevent duplicates
+        existing = Role.query.filter_by(organization_id=organization_id).first()
+        if existing:
+            return
+
+        now = datetime.utcnow()
+
+        roles = [
+            {
+                "name": "Viewer",
+                "description": "Read-only access to all departments and data",
+                "permissions": [
+                    "departments.view","activities.view","outcomes.view",
+                    "signals.view","roles.view","analytics.view",
+                    "settings.view","users.view"
+                ],
+                "tier_required": "free"
+            },
+            {
+                "name": "Editor",
+                "description": "Can create and update activities, outcomes, and signals",
+                "permissions": [
+                    "departments.view","activities.view","activities.create",
+                    "activities.update","activities.execute",
+                    "outcomes.view","outcomes.create","outcomes.update",
+                    "signals.view","signals.create","signals.update",
+                    "roles.view","analytics.view","settings.view","users.view"
+                ],
+                "tier_required": "free"
+            },
+            {
+                "name": "Manager",
+                "description": "Full access to department operations and team management",
+                "permissions": [
+                    "departments.view","departments.update",
+                    "activities.view","activities.create","activities.update",
+                    "activities.delete","activities.execute",
+                    "outcomes.view","outcomes.create","outcomes.update",
+                    "signals.view","signals.create","signals.update","signals.delete",
+                    "roles.view","roles.assign","analytics.view",
+                    "settings.view","users.view","users.invite"
+                ],
+                "tier_required": "basic_premium"
+            },
+            {
+                "name": "Admin",
+                "description": "Full administrative access including role and user management",
+                "permissions": [
+                    "departments.view","departments.create","departments.update","departments.delete",
+                    "activities.view","activities.create","activities.update","activities.delete","activities.execute",
+                    "outcomes.view","outcomes.create","outcomes.update","outcomes.delete",
+                    "signals.view","signals.create","signals.update","signals.delete",
+                    "roles.view","roles.create","roles.update","roles.delete","roles.assign",
+                    "analytics.view",
+                    "settings.view","settings.update",
+                    "users.view","users.invite","users.remove"
+                ],
+                "tier_required": "premium"
+            }
+        ]
+
+        for r in roles:
             role = Role(
-                organization_id=organization_id,
-                name=tmpl['name'],
-                description=tmpl['description'],
-                permissions=tmpl['permissions'],
-                tier_required=tmpl['tier_required'],
-                is_default=tmpl['is_default'],
-                is_system=tmpl['is_system'],
+                organization_id=organization_id,  # 🔴 THIS FIXES YOUR ERROR
+                name=r["name"],
+                description=r["description"],
+                permissions=r["permissions"],
+                tier_required=r["tier_required"],
+                is_default=True,
+                is_system=True,
+                created_at=now,
+                updated_at=now
             )
+
             db.session.add(role)
-            roles.append(role)
 
         db.session.commit()
-        return roles
-
     @staticmethod
     def get_all(organization_id: uuid.UUID) -> list:
         return Role.query.filter_by(

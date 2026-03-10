@@ -1,7 +1,8 @@
 import { useState, useEffect, type ReactElement } from 'react'
 import { useLocation } from 'react-router-dom'
 import api from '../../services/api'
-
+import GlobalSearch from '../common/GlobalSearch'
+import NotificationCenter from '../common/NotificationCenter';
 const ROUTE_TITLES: Record<string, string> = {
   '/dashboard':   'Dashboard',
   '/departments': 'Departments',
@@ -52,7 +53,6 @@ export default function Header({ onMenuClick }: Props): ReactElement {
   }, [])
 
   const criticalCount = alerts.filter((a) => a.status === 'critical').length
-  const hasAlerts     = alerts.length > 0
 
   return (
     <header style={{
@@ -84,7 +84,7 @@ export default function Header({ onMenuClick }: Props): ReactElement {
       >
         ☰
       </button>
-
+        
       {/* Title */}
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 800, fontSize: 16, color: '#1a2635', letterSpacing: '-0.2px' }}>
@@ -92,7 +92,7 @@ export default function Header({ onMenuClick }: Props): ReactElement {
         </div>
         <div style={{ fontSize: 11, color: '#8096aa', marginTop: 1 }}>{today}</div>
       </div>
-
+        <GlobalSearch />  
       {/* Status pill */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
@@ -112,7 +112,7 @@ export default function Header({ onMenuClick }: Props): ReactElement {
 
       {/* Notif button */}
       <div style={{ position: 'relative' }}>
-        <button
+        {/* <button
           onClick={() => setNotifOpen((o) => !o)}
           style={{
             width: 36, height: 36, borderRadius: 10,
@@ -135,8 +135,8 @@ export default function Header({ onMenuClick }: Props): ReactElement {
               border: '1.5px solid #e6ecf3',
             }} />
           )}
-        </button>
-
+        </button> */}
+          <NotificationCenter />
         {notifOpen && (
           <>
             {/* Click-outside overlay */}

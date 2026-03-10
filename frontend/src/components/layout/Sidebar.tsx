@@ -13,6 +13,7 @@ interface NavItem {
   path: string
   icon: string
   locked?: boolean
+  adminOnly?: boolean
 }
 
 interface NavGroup {
@@ -34,6 +35,7 @@ const NAV: NavGroup[] = [
       { label: 'Outcomes',    path: '/outcomes',    icon: '◆' },
       { label: 'Signals',     path: '/signals',     icon: '▲' },
       { label: 'Analytics',   path: '/analytics',   icon: '◷' },
+      { path: '/activity-logs', label: 'Activity Logs', icon:'◷'}
     ],
   },
   {
@@ -49,6 +51,8 @@ const NAV: NavGroup[] = [
     items: [
       { label: 'Roles',     path: '/roles',     icon: '◧' },
       { label: 'Settings',  path: '/settings',  icon: '◫' },
+      { path: '/admin/users', label: 'User Management', icon: '👥', adminOnly: true },
+      { path: '/admin/audit-log', label: 'Audit Log', icon: '📋', adminOnly: true }
     ],
   },
 ]

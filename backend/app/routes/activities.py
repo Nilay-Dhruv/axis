@@ -363,3 +363,75 @@ def get_recent_logs():
         },
         'message': 'Recent logs retrieved'
     }), 200
+
+
+from app.models.activity_log import ActivityLog
+from app.models.department import Department
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import request, jsonify
+from app import db
+
+@activities_bp.route('/logs', methods=['GET'])
+@jwt_required()
+def get_activity_logs():
+    current_user_id = get_jwt_identity()
+    
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    # Filters
+    department_id = request.args.get('department_id')
+    status = request.args.get('status')
+    date_from = request.args.get('date_from')   # ISO string: 2026-01-01
+    date_to = request.args.get('date_to')       # ISO string: 2026-01-31
+
+    query = ActivityLog.query
+
+    if department_id:
+        query = query.filter(ActivityLog.department_id == department_id)
+    if status:
+        query = query.filter(ActivityLog.status == status)
+    if date_from:
+        query = query.filter(ActivityLog.executed_at >= date_from)
+    if date_to:
+        query = query.filter(ActivityLog.executed_at <= date_to)
+
+    paginated = query.order_by(ActivityLog.executed_at.desc())\
+                     .paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "logs": [log.to_dict() for log in paginated.items],
+            "pagination": {
+                "total": paginated.total,
+                "pages": paginated.pages,
+                "current_page": paginated.page,
+                "per_page": per_page,
+                "has_next": paginated.has_next,
+                "has_prev": paginated.has_prev
+            }
+        }
+    }), 200
+
+
+@activities_bp.route('/logs', methods=['POST'])
+@jwt_required()
+def create_activity_log():
+    """Called internally when an activity is executed"""
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+
+    log = ActivityLog(
+        activity_id=data['activity_id'],
+        department_id=data['department_id'],
+        executed_by=current_user_id,
+        status=data.get('status', 'success'),
+        notes=data.get('notes'),
+        result_data=data.get('result_data', {})
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    return jsonify({"success": True, "data": log.to_dict()}), 201

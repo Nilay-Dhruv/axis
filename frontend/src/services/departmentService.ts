@@ -47,3 +47,7 @@ const departmentService = {
 }
 
 export default departmentService
+
+export function getDepartments() {
+    throw new Error('Function not implemented.');
+}

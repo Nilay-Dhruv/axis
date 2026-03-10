@@ -447,3 +447,41 @@ def analytics_overview():
         },
         'message': 'Analytics overview retrieved',
     }), 200
+
+
+
+@auth_bp.route('/notifications', methods=['GET'])
+@jwt_required()
+def get_notifications():
+    from app.models.signal import Signal
+    from app.models.outcome import Outcome
+    from datetime import datetime
+
+    notifications = []
+
+    critical_signals = Signal.query.filter_by(status='critical').limit(10).all()
+    for s in critical_signals:
+        notifications.append({
+            'id': f'sig-{s.id}',
+            'type': 'critical',
+            'title': f'Critical Signal: {s.name}',
+            'message': f'Signal "{s.name}" has reached critical status.',
+            'timestamp': (getattr(s, 'updated_at', None) or getattr(s, 'created_at', None) or datetime.utcnow()).isoformat(),
+            'read': False,
+            'url': f'/signals/{s.id}'
+        })
+
+    at_risk = Outcome.query.filter_by(status='at_risk').limit(10).all()
+    for o in at_risk:
+        notifications.append({
+            'id': f'out-{o.id}',
+            'type': 'warning',
+            'title': f'Outcome At Risk: {o.title}',
+            'message': f'"{o.title}" is marked as at-risk.',
+            'timestamp': (getattr(o, 'updated_at', None) or getattr(o, 'created_at', None) or datetime.utcnow()).isoformat(),
+            'read': False,
+            'url': f'/outcomes/{o.id}'
+        })
+
+    notifications.sort(key=lambda x: x['timestamp'], reverse=True)
+    return jsonify({'notifications': notifications[:20], 'unread_count': len(notifications)}), 200

@@ -17,11 +17,10 @@ assign_schema = RoleAssignSchema()
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
-def _can_manage_roles(user) -> bool:
-    """Check user has roles.create/update/delete permission OR is premium"""
-    tier_level = TIER_HIERARCHY.get(user.subscription_tier, 0)
-    return tier_level >= TIER_HIERARCHY['basic_premium']
+from app.utils.permissions import is_admin, is_manager
 
+def _can_manage_roles(user) -> bool:
+    return is_manager(user)
 
 # ── Role CRUD ──────────────────────────────────────────────────────────────
 
