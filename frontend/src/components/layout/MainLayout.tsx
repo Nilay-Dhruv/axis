@@ -2,6 +2,8 @@ import { useState, useEffect, type ReactElement } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import { ErrorBoundary } from '../common/ErrorBoundary'
+import PageTransition from '../common/PageTransition'
 
 export default function MainLayout(): ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -40,7 +42,11 @@ export default function MainLayout(): ReactElement {
           padding: '28px 28px',
           overflowY: 'auto',
         }}>
-          <Outlet />
+         <ErrorBoundary>
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
+        </ErrorBoundary>
         </main>
       </div>
     </div>

@@ -20,7 +20,7 @@ def register():
     """Register a new user"""
     try:
         data = register_schema.load(request.get_json())
-    except ValidationError as err:
+    except ValidationError as err: 
         return jsonify({
             "success": False,
             "error": {
@@ -238,4 +238,83 @@ def change_password():
         'success': True,
         'data': {},
         'message': 'Password changed successfully'
+    }), 200
+
+
+@auth_bp.route('/dashboard/summary', methods=['GET'])
+@jwt_required_custom
+def dashboard_summary():
+    """Aggregate stats for the dashboard"""
+    from app import db
+    from app.models.department import Department
+    from app.models import ActivityLog
+    from app.models.outcome import Outcome
+    from app.models.signal import Signal
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    org_id = g.current_user.organization_id
+
+    # Department count
+    dept_count = db.session.query(func.count(Department.id))\
+        .filter(Department.organization_id == org_id).scalar() or 0
+
+    # Outcome stats
+    outcomes = db.session.query(Outcome).join(Department)\
+        .filter(Department.organization_id == org_id).all()
+    outcome_count    = len(outcomes)
+    achieved_count   = sum(1 for o in outcomes if o.status == 'achieved')
+    at_risk_count    = sum(1 for o in outcomes if o.status == 'at_risk')
+    avg_progress     = (
+        sum(min((o.current_value / o.target_value) * 100, 100)
+            for o in outcomes if o.target_value and o.target_value > 0)
+        / outcome_count
+    ) if outcome_count else 0
+
+    # Signal health
+    signals = db.session.query(Signal).join(Outcome).join(Department)\
+        .filter(Department.organization_id == org_id).all()
+    signal_count    = len(signals)
+    critical_count  = sum(1 for s in signals if s.status == 'critical')
+    warning_count   = sum(1 for s in signals if s.status == 'warning')
+    normal_count    = sum(1 for s in signals if s.status == 'normal')
+
+    # Recent activity logs (last 7 days)
+    week_ago = datetime.utcnow() - timedelta(days=7)
+    recent_logs = db.session.query(ActivityLog)\
+        .join(ActivityLog.activity)\
+        .filter(ActivityLog.executed_at >= week_ago)\
+        .order_by(ActivityLog.executed_at.desc())\
+        .limit(5).all()
+
+    logs_data = []
+    for log in recent_logs:
+        logs_data.append({
+            'id':           str(log.id),
+            'activity_name': log.activity.name if log.activity else 'Unknown',
+            'status':       log.status,
+            'executed_at':  log.executed_at.isoformat() if log.executed_at else None,
+        })
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'departments': {
+                'total': dept_count,
+            },
+            'outcomes': {
+                'total':       outcome_count,
+                'achieved':    achieved_count,
+                'at_risk':     at_risk_count,
+                'avg_progress': round(avg_progress, 1),
+            },
+            'signals': {
+                'total':    signal_count,
+                'critical': critical_count,
+                'warning':  warning_count,
+                'normal':   normal_count,
+            },
+            'recent_activity': logs_data,
+        },
+        'message': 'Dashboard summary retrieved'
     }), 200

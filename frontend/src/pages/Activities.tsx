@@ -1,11 +1,11 @@
 import { useState, type ReactElement } from 'react'
 import { useActivities } from '../hooks/useActivities'
 import { useDepartments } from '../hooks/useDepartments'
-import ActivityCard from '../components/activities/ActivityCard'
+// import ActivityCard from '../components/activities/ActivityCard'
 import ActivityTypeBadge from '../components/activities/ActivityTypeBadge'
 import ActivityLogRow from '../components/activities/ActivityLogRow'
 import ExecuteModal from '../components/activities/ExecuteModal'
-import SkeletonCard from '../components/common/SkeletonCard'
+// import SkeletonCard from '../components/common/SkeletonCard'
 import type { Activity, ActivityLog } from '../types/department'
 
 const TYPE_FILTERS = [
@@ -29,8 +29,6 @@ export default function Activities(): ReactElement {
     searchQuery,
     filterDept,
     filterType,
-    getDeptName,
-    getDeptColor,
     execute,
     search,
     filterByDept,
@@ -41,7 +39,7 @@ export default function Activities(): ReactElement {
 
   const { departments } = useDepartments()
   const [execActivity, setExecActivity]   = useState<Activity | null>(null)
-  const [selectedActivity, setSelected]   = useState<string | null>(null)
+  // const [selectedActivity, setSelected]   = useState<string | null>(null)
   const [execSuccess, setExecSuccess]     = useState<string | null>(null)
 
   const handleExecute = async (notes: string) => {
@@ -239,118 +237,47 @@ export default function Activities(): ReactElement {
 
         {/* ── Activities List ── */}
         <div>
-          {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
-            </div>
-          ) : deptIds.length === 0 ? (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '64px 24px',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-              }}
-            >
-              <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.2 }}>◎</div>
-              <div
-                style={{
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 700,
-                  fontSize: 18,
-                  color: 'var(--text-primary)',
-                  textTransform: 'uppercase',
-                  marginBottom: 8,
-                }}
-              >
-                No Activities Found
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                {searchQuery
-                  ? `No results for "${searchQuery}"`
-                  : 'Activities will seed automatically from your departments.'}
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {deptIds.map((deptId) => {
-                const deptActivities = grouped[deptId]
-                const deptName  = getDeptName(deptId)
-                const deptColor = getDeptColor(deptId)
-
-                return (
-                  <div key={deptId}>
-                    {/* Department group header */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        marginBottom: 10,
-                        paddingBottom: 8,
-                        borderBottom: `1px solid ${deptColor}30`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: deptColor,
-                          boxShadow: `0 0 8px ${deptColor}`,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span
-                        style={{
-                          fontFamily: 'Rajdhani',
-                          fontWeight: 700,
-                          fontSize: 12,
-                          letterSpacing: '0.15em',
-                          color: deptColor,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {deptName}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          color: 'var(--text-muted)',
-                          fontFamily: 'Rajdhani',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {deptActivities.length} activit{deptActivities.length !== 1 ? 'ies' : 'y'}
-                      </span>
+          {loading && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[1, 2, 3, 4, 5].map((k) => (
+                  <div
+                    key={k}
+                    style={{
+                      background: 'var(--neu-bg)',
+                      borderRadius: 16,
+                      boxShadow: 'var(--neu-shadow-out)',
+                      padding: '18px 22px',
+                      display: 'flex',
+                      gap: 14,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div style={{
+                      width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                      background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                      animation: 'pulse 1.4s ease-in-out infinite',
+                    }} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{
+                        height: 13, width: '45%', borderRadius: 5,
+                        background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                        animation: 'pulse 1.4s ease-in-out infinite',
+                      }} />
+                      <div style={{
+                        height: 10, width: '30%', borderRadius: 5,
+                        background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                        animation: 'pulse 1.4s ease-in-out infinite',
+                      }} />
                     </div>
-
-                    {/* Activity cards for dept */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {deptActivities.map((activity: Activity) => (
-                        <ActivityCard
-                          key={activity.id}
-                          activity={activity}
-                          deptColor={deptColor}
-                          onExecute={(a) => {
-                            clearExecError()
-                            setExecActivity(a)
-                          }}
-                          onSelect={(a) =>
-                            setSelected(selectedActivity === a.id ? null : a.id)
-                          }
-                          isSelected={selectedActivity === activity.id}
-                        />
-                      ))}
-                    </div>
+                    <div style={{
+                      width: 60, height: 24, borderRadius: 20,
+                      background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                      animation: 'pulse 1.4s ease-in-out infinite',
+                    }} />
                   </div>
-                )
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
         </div>
 
         {/* ── Right: Execution Log Panel ── */}

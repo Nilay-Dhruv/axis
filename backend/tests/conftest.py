@@ -1,5 +1,5 @@
 import pytest
-from app import create_app, db
+from app import create_app, db as _db
 from app.config import Config
 
 class TestConfig(Config):
@@ -9,17 +9,26 @@ class TestConfig(Config):
     SECRET_KEY = 'test-secret'
     BCRYPT_LOG_ROUNDS = 4  # Faster hashing in tests
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def app():
-    app = create_app(TestConfig)
+    app = create_app()
+    app.config.update({
+        'TESTING': True,
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+        'JWT_SECRET_KEY': 'test-secret-key-that-is-long-enough-32chars',
+        'WTF_CSRF_ENABLED': False,
+    })
     with app.app_context():
-        db.create_all()
+        _db.create_all()
         yield app
-        db.drop_all()
+        _db.drop_all()
 
-@pytest.fixture
+
+@pytest.fixture(scope='function')
 def client(app):
-    return app.test_client()
+    with app.test_client() as c:
+        with app.app_context():
+            yield c
 
 @pytest.fixture
 def registered_user(client):

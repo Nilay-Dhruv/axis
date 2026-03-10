@@ -1,8 +1,8 @@
 import { useState, type ReactElement } from 'react'
 import { useDepartments } from '../hooks/useDepartments'
-import DepartmentCard from '../components/departments/DepartmentCard'
+// import DepartmentCard from '../components/departments/DepartmentCard'
 import DepartmentDetail from '../components/departments/DepartmentDetail'
-import SkeletonCard from '../components/common/SkeletonCard'
+// import SkeletonCard from '../components/common/SkeletonCard'
 
 const FILTER_OPTIONS = [
   { value: 'all',         label: 'All' },
@@ -23,24 +23,14 @@ export default function Departments(): ReactElement {
     error,
     searchQuery,
     filterType,
-    loadDepartment,
     search,
     filter,
     clearDetail,
     refetch,
   } = useDepartments()
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [, setSelectedId] = useState<string | null>(null)
 
-  const handleCardClick = (id: string) => {
-    if (selectedId === id) {
-      setSelectedId(null)
-      clearDetail()
-    } else {
-      setSelectedId(id)
-      loadDepartment(id)
-    }
-  }
 
   const handleClose = () => {
     setSelectedId(null)
@@ -229,90 +219,59 @@ export default function Departments(): ReactElement {
 
         {/* Department Grid */}
         <div>
-          {loading ? (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 16,
-              }}
-            >
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
-            </div>
-          ) : departments.length === 0 ? (
-            /* Empty state */
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '64px 24px',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-              }}
-            >
-              <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.2 }}>◈</div>
-              <div
-                style={{
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 700,
-                  fontSize: 18,
-                  letterSpacing: '0.06em',
-                  color: 'var(--text-primary)',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                }}
-              >
-                No Departments Found
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-                {searchQuery
-                  ? `No results for "${searchQuery}". Try a different search.`
-                  : 'Departments will be seeded automatically.'}
-              </div>
-              {searchQuery && (
-                <button
-                  onClick={() => search('')}
-                  style={{
-                    padding: '8px 16px',
-                    background: 'var(--cyan-glow)',
-                    border: '1px solid var(--cyan)',
-                    borderRadius: 6,
-                    color: 'var(--cyan)',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontFamily: 'Rajdhani',
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                  }}
-                >
-                  CLEAR SEARCH
-                </button>
+          {loading && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: 18,
+                }}>
+                  {[1, 2, 3, 4, 5, 6].map((k) => (
+                    <div
+                      key={k}
+                      style={{
+                        background: 'var(--neu-bg)',
+                        borderRadius: 20,
+                        boxShadow: 'var(--neu-shadow-out)',
+                        padding: '24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                          background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                          animation: 'pulse 1.4s ease-in-out infinite',
+                        }} />
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                          <div style={{
+                            height: 14, width: '60%', borderRadius: 6,
+                            background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                            animation: 'pulse 1.4s ease-in-out infinite',
+                          }} />
+                          <div style={{
+                            height: 10, width: '40%', borderRadius: 6,
+                            background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                            animation: 'pulse 1.4s ease-in-out infinite',
+                          }} />
+                        </div>
+                      </div>
+                      <div style={{
+                        height: 10, width: '100%', borderRadius: 5,
+                        background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                        animation: 'pulse 1.4s ease-in-out infinite',
+                      }} />
+                      <div style={{
+                        height: 10, width: '75%', borderRadius: 5,
+                        background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+                        animation: 'pulse 1.4s ease-in-out infinite',
+                      }} />
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: selected
-                  ? 'repeat(auto-fill, minmax(240px, 1fr))'
-                  : 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 16,
-                transition: 'grid-template-columns 0.3s ease',
-              }}
-            >
-              {departments.map((dept) => (
-                <DepartmentCard
-                  key={dept.id}
-                  department={dept}
-                  onClick={handleCardClick}
-                  isSelected={selectedId === dept.id}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+                      </div>
 
         {/* Detail Panel */}
         {selected && (

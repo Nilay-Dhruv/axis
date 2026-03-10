@@ -14,7 +14,8 @@ class ActivityLog(db.Model):
     data = db.Column(db.JSON, default={})
     result = db.Column(db.JSON, default={})
     executed_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    activity = db.relationship("Activity", backref="logs")
+    
     def to_dict(self):
         return {
             'id': str(self.id),

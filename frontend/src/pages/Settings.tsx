@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactElement } from 'react'
-import { useSelector, useDispatch } from 'react-redux'
-import type { RootState, AppDispatch } from '../store/store'
+import { useSelector } from 'react-redux'
+import type { RootState } from '../store/store'
 import settingsService from '../services/settingsService'
 import type { AxiosError } from 'axios'
 
@@ -503,12 +503,14 @@ export default function Settings(): ReactElement {
                 { feature: 'Automations',              free: false, basic: false, pro: true  },
                 { feature: 'Simulations',              free: false, basic: false, pro: true  },
               ].map((row) => {
-                const hasAccess =
-                  tier === 'premium'
-                    ? row.pro
-                    : tier === 'basic_premium'
-                    ? row.basic
-                    : row.free
+                const isAdmin = authUser?.email?.toLowerCase().includes('admin') ||
+                tier === 'premium'
+
+              const hasAccess = isAdmin
+                ? true  // admins get everything
+                : tier === 'basic_premium'
+                ? row.basic
+                : row.free
 
                 return (
                   <div
@@ -544,7 +546,7 @@ export default function Settings(): ReactElement {
                   <button
                     className="neu-btn-primary"
                     style={{ width: '100%' }}
-                    onClick={() => alert('Upgrade flow coming in Day 15!')}
+                    onClick={() => window.open('mailto:support@axis.io?subject=Upgrade Inquiry', '_blank')}
                   >
                     ◆ UPGRADE PLAN
                   </button>

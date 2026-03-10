@@ -33,6 +33,13 @@
   --success:      #1e9e60;
   --warning:      #d4870a;
   --danger:       #b92c2c;
+
+
+  /* Neu-prefixed text aliases (used by Day 15+ components) */
+  --neu-text-dark:  #1a2635;
+  --neu-text-mid:   #4a5e72;
+  --neu-text-light: #8096aa;
+  --neu-divider:    #d4e0ec;
 }
 
 body {
@@ -58,6 +65,12 @@ body {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.45; }
+}
+.skeleton {
+  background: var(--neu-bg);
+  box-shadow: var(--neu-shadow-in);
+  border-radius: 8px;
+  animation: pulse 1.4s ease-in-out infinite;
 }
 @keyframes spin {
   from { transform: rotate(0deg); }

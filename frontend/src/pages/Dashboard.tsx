@@ -1,614 +1,555 @@
-import { useAuth } from '../hooks/useAuth'
-import type { ReactElement } from 'react'
+import { useState, useEffect, type ReactElement } from 'react'
+import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
+import type { RootState } from '../store/store'
+import dashboardService from '../services/dashboardService'
+import type { DashboardSummary } from '../services/dashboardService'
+import type { AxiosError } from 'axios'
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-interface StatItem {
-  label: string
-  value: string
-  delta: string
-  icon: string
-  color: string
+interface StatCardProps {
+  label:   string
+  value:   string | number
+  sub?:    string
+  icon:    string
+  accent?: string
+  onClick?: () => void
 }
 
-interface QuickAction {
-  label: string
-  icon: string
-  path: string
-}
-
-interface BuildItem {
-  label: string
-  day: number
-  done: boolean
-}
-
-interface TimelineItem {
-  icon: string
-  text: string
-  time: string
-  color: string
-  done: boolean
-}
-
-// ── Data ───────────────────────────────────────────────────────────────────
-
-const STATS: StatItem[] = [
-  { label: 'Active Departments', value: '6',  delta: '+0', icon: '◈', color: 'var(--cyan)'    },
-  { label: 'Open Activities',    value: '—',  delta: '—',  icon: '◎', color: 'var(--warning)' },
-  { label: 'Signal Alerts',      value: '—',  delta: '—',  icon: '▲', color: 'var(--danger)'  },
-  { label: 'Automations',        value: '—',  delta: '—',  icon: '⬟', color: 'var(--success)' },
-]
-
-const QUICK_ACTIONS: QuickAction[] = [
-  { label: 'View Departments', icon: '◈', path: '/departments' },
-  { label: 'Log Decision',     icon: '◐', path: '/decisions'   },
-  { label: 'Check Signals',    icon: '▲', path: '/signals'     },
-]
-
-const BUILD_PROGRESS: BuildItem[] = [
-  { label: 'Auth System',   day: 3,  done: true  },
-  { label: 'Layout & Nav',  day: 4,  done: true  },
-  { label: 'Departments',   day: 7,  done: false },
-  { label: 'Activities',    day: 9,  done: false },
-  { label: 'Outcomes',      day: 11, done: false },
-  { label: 'Automations',   day: 16, done: false },
-  { label: 'Analytics',     day: 22, done: false },
-  { label: 'Simulations',   day: 24, done: false },
-]
-
-const TIMELINE: TimelineItem[] = [
-  { icon: '◆', text: 'Auth system initialized',   time: 'Day 3',            color: 'var(--success)',    done: true  },
-  { icon: '◈', text: 'Layout & navigation built', time: 'Day 4',            color: 'var(--cyan)',       done: true  },
-  { icon: '◇', text: 'Department backend',         time: 'Day 5 · upcoming', color: 'var(--text-muted)', done: false },
-  { icon: '◇', text: 'Department frontend',        time: 'Day 7 · upcoming', color: 'var(--text-muted)', done: false },
-  { icon: '◇', text: 'Activities & execution',     time: 'Day 9 · upcoming', color: 'var(--text-muted)', done: false },
-]
-
-// ── Sub-components ─────────────────────────────────────────────────────────
-
-function StatCard({ stat, index }: { stat: StatItem; index: number }): ReactElement {
+function StatCard({ label, value, sub, icon, accent = 'var(--neu-accent)', onClick }: StatCardProps): ReactElement {
   return (
-    <div
-      key={stat.label}
-      className="animate-fade-slide hover:border-border-bright"
+    <button
+      onClick={onClick}
       style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        padding: '18px 20px',
-        position: 'relative',
-        overflow: 'hidden',
-        transition: 'border-color 0.2s',
-        animationDelay: `${index * 0.05}s`,
-        cursor: 'default',
+        textAlign: 'left',
+        background: 'var(--neu-bg)',
+        borderRadius: 20,
+        boxShadow: 'var(--neu-shadow-out)',
+        padding: '22px 24px',
+        border: 'none',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'box-shadow 0.2s ease',
+        width: '100%',
+      }}
+      onMouseEnter={(e) => {
+        if (onClick) (e.currentTarget as HTMLElement).style.boxShadow = 'var(--neu-shadow-in)'
+      }}
+      onMouseLeave={(e) => {
+        if (onClick) (e.currentTarget as HTMLElement).style.boxShadow = 'var(--neu-shadow-out)'
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          top: -20,
-          right: -20,
-          width: 80,
-          height: 80,
-          borderRadius: '50%',
-          background: stat.color,
-          opacity: 0.04,
-          filter: 'blur(20px)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          marginBottom: 12,
-        }}
-      >
-        <span style={{ fontSize: 20, color: stat.color }}>{stat.icon}</span>
-        <span
-          style={{
-            fontSize: 10,
-            color: stat.delta === '—' ? 'var(--text-muted)' : 'var(--success)',
-            fontFamily: 'Rajdhani',
-            fontWeight: 600,
-            letterSpacing: '0.05em',
-            padding: '2px 6px',
-            border: `1px solid ${stat.delta === '—' ? 'var(--border)' : 'rgba(0,204,136,0.3)'}`,
-            borderRadius: 3,
-          }}
-        >
-          {stat.delta}
-        </span>
-      </div>
-      <div
-        style={{
-          fontSize: 28,
-          fontFamily: 'Rajdhani',
-          fontWeight: 700,
-          color: 'var(--text-primary)',
-          lineHeight: 1,
-          marginBottom: 4,
-        }}
-      >
-        {stat.value}
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-        {stat.label}
-      </div>
-    </div>
-  )
-}
-
-function TimelineRow({ item, isLast }: { item: TimelineItem; isLast: boolean }): ReactElement {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
-        padding: '10px 0',
-        borderBottom: isLast ? 'none' : '1px solid var(--border)',
-        opacity: item.done ? 1 : 0.45,
-      }}
-    >
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 6,
-          background: item.done ? `${item.color}15` : 'transparent',
-          border: `1px solid ${item.done ? item.color : 'var(--border)'}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 12,
-          color: item.color,
-          flexShrink: 0,
-          marginTop: 1,
-        }}
-      >
-        {item.icon}
-      </div>
-      <div style={{ flex: 1 }}>
+      {/* Icon row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div
           style={{
-            fontSize: 13,
-            color: item.done ? 'var(--text-primary)' : 'var(--text-muted)',
-            fontWeight: 500,
+            width: 42, height: 42, borderRadius: 12,
+            background: 'var(--neu-bg)',
+            boxShadow: 'var(--neu-shadow-out)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, color: accent,
           }}
         >
-          {item.text}
+          {icon}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.05em' }}>
-          {item.time}
-        </div>
+        {onClick && (
+          <span style={{ fontSize: 11, color: 'var(--neu-text-light)', fontFamily: 'Rajdhani', fontWeight: 700 }}>
+            VIEW →
+          </span>
+        )}
       </div>
-      {item.done && (
-        <span
-          style={{
-            fontSize: 9,
-            color: 'var(--success)',
-            fontFamily: 'Rajdhani',
-            fontWeight: 700,
-            letterSpacing: '0.1em',
-            padding: '2px 6px',
-            border: '1px solid rgba(0,204,136,0.3)',
-            borderRadius: 3,
-            marginTop: 4,
-            flexShrink: 0,
-          }}
-        >
-          DONE
-        </span>
+
+      {/* Value */}
+      <div
+        style={{
+          fontFamily: 'Rajdhani',
+          fontWeight: 800,
+          fontSize: 36,
+          color: 'var(--neu-text-dark)',
+          lineHeight: 1,
+          marginBottom: 6,
+        }}
+      >
+        {value}
+      </div>
+
+      {/* Label */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--neu-text-mid)', letterSpacing: '0.04em' }}>
+        {label}
+      </div>
+
+      {/* Sub */}
+      {sub && (
+        <div style={{ fontSize: 11, color: 'var(--neu-text-light)', marginTop: 4 }}>
+          {sub}
+        </div>
       )}
+    </button>
+  )
+}
+
+interface HealthBarProps {
+  critical: number
+  warning:  number
+  normal:   number
+  total:    number
+}
+
+function SignalHealthBar({ critical, warning, normal, total }: HealthBarProps): ReactElement {
+  if (total === 0) return (
+    <div style={{ height: 10, borderRadius: 5, background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)' }} />
+  )
+  const cp = (critical / total) * 100
+  const wp = (warning  / total) * 100
+  const np = (normal   / total) * 100
+
+  return (
+    <div>
+      <div
+        style={{
+          height: 10, borderRadius: 5, overflow: 'hidden',
+          background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-in)',
+          display: 'flex',
+        }}
+      >
+        {cp > 0 && <div style={{ width: `${cp}%`, background: '#b44646', transition: 'width 0.6s' }} />}
+        {wp > 0 && <div style={{ width: `${wp}%`, background: '#c4a45a', transition: 'width 0.6s' }} />}
+        {np > 0 && <div style={{ width: `${np}%`, background: '#468c64', transition: 'width 0.6s' }} />}
+      </div>
+      <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+        {[
+          { label: 'Critical', count: critical, color: '#b44646' },
+          { label: 'Warning',  count: warning,  color: '#c4a45a' },
+          { label: 'Normal',   count: normal,   color: '#468c64' },
+        ].map((item) => (
+          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: 'var(--neu-text-light)', fontFamily: 'Rajdhani', fontWeight: 600 }}>
+              {item.count} {item.label}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-function ActionLink({ action }: { action: QuickAction }): ReactElement {
-  return (
-    <a
-      href={action.path}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '8px 10px',
-        borderRadius: 6,
-        color: 'var(--text-secondary)',
-        fontSize: 13,
-        textDecoration: 'none',
-        transition: 'all 0.15s',
-        marginBottom: 2,
-      }}
-      className="hover:bg-hover hover:text-primary"
-    >
-      <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>{action.icon}</span>
-      <span style={{ flex: 1 }}>{action.label}</span>
-      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>&#8594;</span>
-    </a>
-  )
+interface ActivityRowProps {
+  name:        string
+  status:      string
+  executedAt:  string | null
 }
 
-function BuildRow({ item }: { item: BuildItem }): ReactElement {
+function ActivityRow({ name, status, executedAt }: ActivityRowProps): ReactElement {
+  const statusCfg: Record<string, { color: string; bg: string }> = {
+    completed: { color: '#468c64', bg: 'rgba(70,140,100,0.10)' },
+    failed:    { color: '#b44646', bg: 'rgba(180,70,70,0.10)'  },
+    pending:   { color: '#c4a45a', bg: 'rgba(196,164,90,0.10)' },
+  }
+  const cfg = statusCfg[status] ?? { color: 'var(--neu-text-light)', bg: 'transparent' }
+
+  const timeAgo = (iso: string | null): string => {
+    if (!iso) return '—'
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    return `${Math.floor(hrs / 24)}d ago`
+  }
+
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '6px 0',
-        borderBottom: '1px solid var(--border)',
-        fontSize: 12,
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '11px 0',
+        borderBottom: '1px solid var(--neu-divider)',
       }}
     >
+      <div
+        style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: cfg.color, flexShrink: 0,
+        }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--neu-text-dark)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
+          {name}
+        </div>
+      </div>
       <span
         style={{
-          fontSize: 11,
-          color: item.done ? 'var(--success)' : 'var(--text-muted)',
+          fontSize: 10, fontFamily: 'Rajdhani', fontWeight: 700,
+          letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 20,
+          background: cfg.bg, color: cfg.color,
           flexShrink: 0,
         }}
       >
-        {item.done ? '◆' : '◇'}
+        {status.toUpperCase()}
       </span>
-      <span
-        style={{
-          flex: 1,
-          color: item.done ? 'var(--text-primary)' : 'var(--text-muted)',
-          fontWeight: item.done ? 500 : 400,
-        }}
-      >
-        {item.label}
-      </span>
-      <span
-        style={{
-          fontSize: 9,
-          color: item.done ? 'var(--success)' : 'var(--text-muted)',
-          fontFamily: 'Rajdhani',
-          fontWeight: 600,
-          letterSpacing: '0.1em',
-          flexShrink: 0,
-        }}
-      >
-        D{item.day}
+      <span style={{ fontSize: 11, color: 'var(--neu-text-light)', flexShrink: 0, minWidth: 52, textAlign: 'right' }}>
+        {timeAgo(executedAt)}
       </span>
     </div>
   )
 }
 
-// ── Main Component ─────────────────────────────────────────────────────────
+interface SkeletonCardProps { height?: number }
+
+function SkeletonCard({ height = 120 }: SkeletonCardProps): ReactElement {
+  return (
+    <div
+      style={{
+        background: 'var(--neu-bg)',
+        borderRadius: 20,
+        boxShadow: 'var(--neu-shadow-out)',
+        height,
+        animation: 'pulse 1.4s ease-in-out infinite',
+      }}
+    />
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Dashboard(): ReactElement {
-  const { user } = useAuth()
-  const doneCount = BUILD_PROGRESS.filter((b) => b.done).length
-  const progressPct = (doneCount / BUILD_PROGRESS.length) * 100
-  const tier = user?.subscription_tier ?? 'free'
+  const navigate = useNavigate()
+  const user     = useSelector((s: RootState) => s.auth.user)
+
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+
+  const greeting = (): string => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 17) return 'Good afternoon'
+    return 'Good evening'
+  }
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await dashboardService.getSummary()
+        setSummary(res.data)
+      } catch (err) {
+        const e = err as AxiosError<{ error: { message: string } }>
+        setError(e.response?.data?.error?.message ?? 'Failed to load dashboard')
+      } finally {
+        setLoading(false)
+      }
+    }
+    void load()
+  }, [])
+
+  const firstName = user?.full_name?.split(' ')[0] ?? 'there'
 
   return (
-    <div className="animate-fade-slide">
+    <div className="neu-fade-up">
 
-      {/* ── Welcome Banner ─────────────────────────────── */}
+      {/* ── Greeting ──────────────────────────────────────────────── */}
+      <div style={{ marginBottom: 32 }}>
+        <div
+          style={{
+            fontFamily: 'Rajdhani',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.2em',
+            color: 'var(--neu-text-light)',
+            textTransform: 'uppercase',
+            marginBottom: 4,
+          }}
+        >
+          {greeting()}
+        </div>
+        <h1
+          style={{
+            fontSize: 28,
+            fontWeight: 900,
+            color: 'var(--neu-text-dark)',
+            letterSpacing: '-0.3px',
+            marginBottom: 6,
+          }}
+        >
+          {firstName} ◈
+        </h1>
+        <div style={{ fontSize: 13, color: 'var(--neu-text-mid)' }}>
+          Here's what's happening across your organization today.
+        </div>
+      </div>
+
+      {/* ── Error ─────────────────────────────────────────────────── */}
+      {error && (
+        <div
+          style={{
+            padding: '12px 16px', borderRadius: 10, marginBottom: 24,
+            background: 'rgba(180,70,70,0.08)',
+            border: '1px solid rgba(180,70,70,0.25)',
+            color: '#b44646', fontSize: 12,
+          }}
+        >
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* ── Stat Cards ────────────────────────────────────────────── */}
       <div
         style={{
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border)',
-          borderLeft: '3px solid var(--cyan)',
-          borderRadius: 8,
-          padding: '20px 24px',
-          marginBottom: 24,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+          gap: 18,
+          marginBottom: 28,
+        }}
+      >
+        {loading ? (
+          [1, 2, 3, 4].map((k) => <SkeletonCard key={k} height={150} />)
+        ) : (
+          <>
+            <StatCard
+              label="Departments"
+              value={summary?.departments.total ?? 0}
+              icon="◉"
+              sub="Active operational units"
+              onClick={() => navigate('/departments')}
+            />
+            <StatCard
+              label="Outcomes"
+              value={summary?.outcomes.total ?? 0}
+              icon="◆"
+              sub={`${summary?.outcomes.achieved ?? 0} achieved · ${summary?.outcomes.at_risk ?? 0} at risk`}
+              onClick={() => navigate('/outcomes')}
+            />
+            <StatCard
+              label="Avg Progress"
+              value={`${summary?.outcomes.avg_progress ?? 0}%`}
+              icon="▲"
+              sub="Across all active outcomes"
+              accent="#468c64"
+            />
+            <StatCard
+              label="Signals"
+              value={summary?.signals.total ?? 0}
+              icon="◈"
+              sub={`${summary?.signals.critical ?? 0} critical · ${summary?.signals.warning ?? 0} warning`}
+              accent={
+                (summary?.signals.critical ?? 0) > 0
+                  ? '#b44646'
+                  : (summary?.signals.warning ?? 0) > 0
+                  ? '#c4a45a'
+                  : 'var(--neu-accent)'
+              }
+              onClick={() => navigate('/signals')}
+            />
+          </>
+        )}
+      </div>
+
+      {/* ── Lower Grid: Signal Health + Recent Activity ────────────── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.4fr)',
+          gap: 20,
+          alignItems: 'start',
+        }}
+      >
+        {/* Signal Health Panel */}
+        <div
+          style={{
+            background: 'var(--neu-bg)',
+            borderRadius: 20,
+            boxShadow: 'var(--neu-shadow-out)',
+            padding: '24px',
+          }}
+        >
+          <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 11,
+                  letterSpacing: '0.15em', color: 'var(--neu-text-light)',
+                  textTransform: 'uppercase', marginBottom: 2,
+                }}
+              >
+                Signal Health
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--neu-text-mid)' }}>
+                Real-time system status
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/signals')}
+              style={{
+                fontSize: 11, fontFamily: 'Rajdhani', fontWeight: 700,
+                color: 'var(--neu-accent)', background: 'none',
+                border: 'none', cursor: 'pointer', padding: '4px 8px',
+              }}
+            >
+              VIEW ALL →
+            </button>
+          </div>
+
+          {loading ? (
+            <SkeletonCard height={60} />
+          ) : (
+            <>
+              <SignalHealthBar
+                critical={summary?.signals.critical ?? 0}
+                warning={summary?.signals.warning ?? 0}
+                normal={summary?.signals.normal ?? 0}
+                total={summary?.signals.total ?? 0}
+              />
+
+              {/* Status summary items */}
+              <div style={{ marginTop: 20 }}>
+                {[
+                  {
+                    label: 'Systems Normal',
+                    value: summary?.signals.normal ?? 0,
+                    color: '#468c64',
+                    bg: 'rgba(70,140,100,0.08)',
+                  },
+                  {
+                    label: 'Warnings Active',
+                    value: summary?.signals.warning ?? 0,
+                    color: '#c4a45a',
+                    bg: 'rgba(196,164,90,0.08)',
+                  },
+                  {
+                    label: 'Critical Alerts',
+                    value: summary?.signals.critical ?? 0,
+                    color: '#b44646',
+                    bg: 'rgba(180,70,70,0.08)',
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', borderRadius: 10, marginBottom: 8,
+                      background: item.bg,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: item.color, fontWeight: 600 }}>
+                      {item.label}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 16, fontFamily: 'Rajdhani', fontWeight: 800, color: item.color,
+                      }}
+                    >
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Recent Activity Panel */}
+        <div
+          style={{
+            background: 'var(--neu-bg)',
+            borderRadius: 20,
+            boxShadow: 'var(--neu-shadow-out)',
+            padding: '24px',
+          }}
+        >
+          <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 11,
+                  letterSpacing: '0.15em', color: 'var(--neu-text-light)',
+                  textTransform: 'uppercase', marginBottom: 2,
+                }}
+              >
+                Recent Activity
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--neu-text-mid)' }}>
+                Last 7 days of executions
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/activities')}
+              style={{
+                fontSize: 11, fontFamily: 'Rajdhani', fontWeight: 700,
+                color: 'var(--neu-accent)', background: 'none',
+                border: 'none', cursor: 'pointer', padding: '4px 8px',
+              }}
+            >
+              VIEW ALL →
+            </button>
+          </div>
+
+          {loading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[1, 2, 3].map((k) => <SkeletonCard key={k} height={44} />)}
+            </div>
+          ) : summary?.recent_activity.length === 0 ? (
+            <div
+              style={{
+                textAlign: 'center', padding: '36px 16px',
+                color: 'var(--neu-text-light)', fontSize: 13,
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.3 }}>◎</div>
+              No activity in the last 7 days
+            </div>
+          ) : (
+            <div>
+              {summary?.recent_activity.map((log) => (
+                <ActivityRow
+                  key={log.id}
+                  name={log.activity_name}
+                  status={log.status}
+                  executedAt={log.executed_at}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Quick Nav Row ──────────────────────────────────────────── */}
+      <div
+        style={{
+          marginTop: 28,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
           gap: 12,
         }}
       >
-        <div>
-          <div
+        {[
+          { label: 'Departments', path: '/departments', icon: '◉' },
+          { label: 'Activities',  path: '/activities',  icon: '◎' },
+          { label: 'Outcomes',    path: '/outcomes',    icon: '◆' },
+          { label: 'Signals',     path: '/signals',     icon: '▲' },
+          { label: 'Analytics',   path: '/analytics',   icon: '◷' },
+          { label: 'Roles',       path: '/roles',       icon: '◧' },
+        ].map((item) => (
+          <button
+            key={item.path}
+            onClick={() => navigate(item.path)}
+            className="neu-btn-ghost"
             style={{
-              fontFamily: 'Rajdhani',
-              fontWeight: 700,
-              fontSize: 22,
-              letterSpacing: '0.06em',
-              color: 'var(--text-primary)',
-              textTransform: 'uppercase',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '12px 16px', borderRadius: 12,
+              justifyContent: 'flex-start',
+              fontSize: 12, fontWeight: 700,
+              fontFamily: 'Rajdhani', letterSpacing: '0.06em',
             }}
           >
-            Welcome back, {user?.full_name?.split(' ')[0]}
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
-            Your AXIS command center is operational. All systems nominal.
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 14px',
-            background: 'rgba(0, 204, 136, 0.08)',
-            border: '1px solid rgba(0, 204, 136, 0.3)',
-            borderRadius: 4,
-            fontSize: 11,
-            color: 'var(--success)',
-            fontFamily: 'Rajdhani',
-            fontWeight: 600,
-            letterSpacing: '0.1em',
-          }}
-        >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: 'var(--success)',
-              boxShadow: '0 0 8px var(--success)',
-              display: 'inline-block',
-            }}
-          />
-          ALL SYSTEMS OPERATIONAL
-        </div>
-      </div>
-
-      {/* ── Stats Grid ─────────────────────────────────── */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        {STATS.map((stat, i) => (
-          <StatCard key={stat.label} stat={stat} index={i} />
+            <span style={{ color: 'var(--neu-accent)', fontSize: 14 }}>{item.icon}</span>
+            {item.label.toUpperCase()}
+          </button>
         ))}
-      </div>
-
-      {/* ── Main Content Grid ──────────────────────────── */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 300px',
-          gap: 16,
-        }}
-      >
-
-        {/* ── Left: Activity Timeline ── */}
-        <div
-          style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '20px 24px',
-            minHeight: 320,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 20,
-              paddingBottom: 14,
-              borderBottom: '1px solid var(--border)',
-            }}
-          >
-            <span
-              style={{
-                fontFamily: 'Rajdhani',
-                fontWeight: 700,
-                fontSize: 13,
-                letterSpacing: '0.15em',
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-              }}
-            >
-              Recent Activity
-            </span>
-            <span
-              style={{
-                fontSize: 10,
-                color: 'var(--border-bright)',
-                padding: '2px 8px',
-                border: '1px solid var(--border)',
-                borderRadius: 3,
-                fontFamily: 'Rajdhani',
-                fontWeight: 600,
-                letterSpacing: '0.1em',
-              }}
-            >
-              LIVE &#183; DAY 14
-            </span>
-          </div>
-
-          {TIMELINE.map((item, i) => (
-            <TimelineRow
-              key={item.text}
-              item={item}
-              isLast={i === TIMELINE.length - 1}
-            />
-          ))}
-        </div>
-
-        {/* ── Right Column ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Quick Actions */}
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '16px 18px',
-            }}
-          >
-            <div
-              style={{
-                fontFamily: 'Rajdhani',
-                fontWeight: 700,
-                fontSize: 12,
-                letterSpacing: '0.15em',
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                marginBottom: 12,
-                paddingBottom: 10,
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
-              Quick Actions
-            </div>
-            {QUICK_ACTIONS.map((action) => (
-              <ActionLink key={action.label} action={action} />
-            ))}
-          </div>
-
-          {/* Build Progress */}
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '16px 18px',
-              flex: 1,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 12,
-                paddingBottom: 10,
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  letterSpacing: '0.15em',
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Build Progress
-              </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  color: 'var(--cyan)',
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 700,
-                }}
-              >
-                {doneCount} / {BUILD_PROGRESS.length}
-              </span>
-            </div>
-
-            {/* Progress bar */}
-            <div
-              style={{
-                height: 3,
-                background: 'var(--border)',
-                borderRadius: 2,
-                marginBottom: 14,
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  height: '100%',
-                  width: `${progressPct}%`,
-                  background: 'var(--cyan)',
-                  boxShadow: '0 0 8px var(--cyan)',
-                  borderRadius: 2,
-                  transition: 'width 0.6s ease',
-                }}
-              />
-            </div>
-
-            {BUILD_PROGRESS.map((item) => (
-              <BuildRow key={item.label} item={item} />
-            ))}
-          </div>
-
-          {/* Tier Badge */}
-          <div
-            style={{
-              background: tier === 'premium' ? 'rgba(0,212,255,0.05)' : 'var(--bg-surface)',
-              border: `1px solid ${tier === 'premium' ? 'var(--cyan)' : 'var(--border)'}`,
-              borderRadius: 8,
-              padding: '14px 18px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                background: 'var(--cyan-glow)',
-                border: '1px solid var(--border-bright)',
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 18,
-                color: 'var(--cyan)',
-                flexShrink: 0,
-              }}
-            >
-              ◆
-            </div>
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: 'var(--text-primary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  fontFamily: 'Rajdhani',
-                }}
-              >
-                {tier === 'free' ? 'Free Tier' : tier === 'basic_premium' ? 'Basic Premium' : 'Premium'}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                {tier === 'free'
-                  ? 'Upgrade to unlock automations & simulations'
-                  : 'All features unlocked'}
-              </div>
-            </div>
-
-            {tier === 'free' && (
-              <a
-                href="/settings"
-                style={{
-                  fontSize: 10,
-                  color: 'var(--cyan)',
-                  fontFamily: 'Rajdhani',
-                  fontWeight: 700,
-                  letterSpacing: '0.1em',
-                  padding: '4px 8px',
-                  border: '1px solid var(--cyan)',
-                  borderRadius: 4,
-                  textDecoration: 'none',
-                  flexShrink: 0,
-                  transition: 'background 0.15s',
-                }}
-              >
-                UPGRADE
-              </a>
-            )}
-          </div>
-
-        </div>
       </div>
     </div>
   )

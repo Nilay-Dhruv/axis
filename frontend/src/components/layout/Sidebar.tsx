@@ -139,52 +139,63 @@ export default function Sidebar({ isOpen, onClose }: Props): ReactElement {
 
               {group.items.map((item) => (
                 item.locked ? (
-                  <div
-                    key={item.path}
-                    style={{
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      style={({ isActive }) => ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
                       padding: '10px 12px',
                       borderRadius: 12,
-                      color: '#b0c2d4',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'not-allowed',
+                      color:      isActive ? '#5aa9c4' : '#4a5e72',
+                      fontSize:   13,
+                      fontWeight: isActive ? 700 : 600,
+                      textDecoration: 'none',
                       marginBottom: 2,
-                    }}
-                  >
-                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
-                    <span style={{ flex: 1 }}>{item.label}</span>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.5px',
-                      background: '#eaf4fb', color: '#5aa9c4',
-                      padding: '2px 6px', borderRadius: 30,
-                    }}>
-                      PRO
-                    </span>
-                  </div>
-                ) : (
+                      background:  isActive ? 'rgba(90,169,196,0.10)' : 'transparent',
+                      boxShadow:   isActive
+                        ? 'inset 3px 3px 8px #c3cdd8, inset -3px -3px 8px #ffffff'
+                        : 'none',
+                      borderLeft:  isActive ? '3px solid #5aa9c4' : '3px solid transparent',
+                      paddingLeft: isActive ? '9px' : '12px',
+                      transition:  'all 0.2s ease',
+                    })}
+                    >
+                      <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
+                      <span style={{ flex: 1 }}>{item.label}</span>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: '0.5px',
+                        background: '#eaf4fb', color: '#5aa9c4',
+                        padding: '2px 6px', borderRadius: 30,
+                        flexShrink: 0,
+                      }}>
+                        PRO
+                      </span>
+                    </NavLink>
+                  ) : (
                   <NavLink
                     key={item.path}
                     to={item.path}
                     style={({ isActive }) => ({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                      color: isActive ? '#5aa9c4' : '#4a5e72',
-                      fontSize: 13,
-                      fontWeight: isActive ? 700 : 600,
-                      textDecoration: 'none',
-                      marginBottom: 2,
-                      background: isActive ? 'rgba(90,169,196,0.1)' : 'transparent',
-                      boxShadow: isActive
-                        ? 'inset 3px 3px 8px #c3cdd8, inset -3px -3px 8px #ffffff'
-                        : 'none',
-                      transition: 'all 0.2s',
-                    })}
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 12px',
+                        borderRadius: 12,
+                        color:      isActive ? '#5aa9c4' : '#4a5e72',
+                        fontSize:   13,
+                        fontWeight: isActive ? 700 : 600,
+                        textDecoration: 'none',
+                        marginBottom: 2,
+                        background:  isActive ? 'rgba(90,169,196,0.10)' : 'transparent',
+                        boxShadow:   isActive
+                          ? 'inset 3px 3px 8px #c3cdd8, inset -3px -3px 8px #ffffff'
+                          : 'none',
+                        borderLeft:  isActive ? '3px solid #5aa9c4' : '3px solid transparent',
+                        paddingLeft: isActive ? '9px' : '12px',
+                        transition:  'all 0.2s ease',
+                      })}
                   >
                     <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
                     <span>{item.label}</span>
