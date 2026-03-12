@@ -1,45 +1,45 @@
-version: '3.8'
+version: '3.9'
 
 services:
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: axis_dev
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
   backend:
     build:
       context: ./backend
-      dockerfile: ../docker/Dockerfile.backend
-    ports:
-      - "5000:5000"
+      dockerfile: Dockerfile
+    container_name: axis-backend
+    restart: unless-stopped
     env_file:
       - ./backend/.env
-    depends_on:
-      - db
-      - redis
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=sqlite:///axis.db
+    ports:
+      - "5000:5000"
     volumes:
-      - ./backend:/app
+      - backend_data:/app/instance
+    networks:
+      - axis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: ../docker/Dockerfile.frontend
+      dockerfile: Dockerfile
+    container_name: axis-frontend
+    restart: unless-stopped
     ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - axis-network
 
 volumes:
-  postgres_data:
+  backend_data:
+
+networks:
+  axis-network:
+    driver: bridge

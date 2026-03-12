@@ -9,6 +9,13 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'DATABASE_URL', 'postgresql://postgres:root@localhost:5432/axis_dev'
     )
+    
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+        'max_overflow': 20,
+    }
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # JWT
@@ -35,3 +42,5 @@ class Config:
 
     FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
     ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
+
+    

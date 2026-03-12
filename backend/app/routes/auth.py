@@ -8,6 +8,7 @@ from marshmallow import ValidationError
 from app.schemas.user_schema import RegisterSchema, LoginSchema
 from app.services.auth_service import AuthService
 from app import db
+from app.cache import cache
 auth_bp = Blueprint('auth', __name__)
 
 register_schema = RegisterSchema()
@@ -243,6 +244,7 @@ def change_password():
 
 @auth_bp.route('/dashboard/summary', methods=['GET'])
 @jwt_required_custom
+@cache.cached(timeout=120, key_prefix='dashboard_summary')
 def dashboard_summary():
     """Aggregate stats for the dashboard"""
     from app import db
@@ -322,6 +324,7 @@ def dashboard_summary():
 
 @auth_bp.route('/analytics/overview', methods=['GET'])
 @jwt_required_custom
+@cache.cached(timeout=300, key_prefix='analytics_overview')
 def analytics_overview():
     """Comprehensive analytics data for the analytics page"""
     from app import db
@@ -673,3 +676,80 @@ def verify_2fa():
     totp = pyotp.TOTP(secret)
     valid = totp.verify(code, valid_window=1)
     return jsonify({'valid': valid, 'message': '2FA verified successfully' if valid else 'Invalid code'}), 200
+
+
+cache.delete('dashboard_summary')
+cache.delete('analytics_overview')
+
+
+@auth_bp.route('/health', methods=['GET'])
+def health_check():
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'version': '1.0.0'
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+    
+
+
+
+@auth_bp.route('/onboarding/status', methods=['GET', 'OPTIONS'])
+@jwt_required(optional=True)
+def onboarding_status():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+    from app.models.department import Department
+    from app.models.outcome import Outcome
+    from app.models.signal import Signal
+
+    steps = [
+        {'id': 'profile',    'label': 'Complete your profile',     'done': True},
+        {'id': 'department', 'label': 'Create a department',       'done': Department.query.count() > 0},
+        {'id': 'outcome',    'label': 'Add an outcome',            'done': Outcome.query.count() > 0},
+        {'id': 'signal',     'label': 'Configure a signal',        'done': Signal.query.count() > 0},
+    ]
+    completed = sum(1 for s in steps if s['done'])
+    return jsonify({
+        'steps': steps,
+        'completed': completed,
+        'total': len(steps),
+        'percent': round(completed / len(steps) * 100)
+    }), 200
+
+
+@auth_bp.route('/docs', methods=['GET'])
+def api_docs():
+    """Returns a machine-readable API summary."""
+    endpoints = [
+        {'method': 'POST', 'path': '/api/v1/auth/login',              'auth': False, 'description': 'Login'},
+        {'method': 'POST', 'path': '/api/v1/auth/register',           'auth': False, 'description': 'Register'},
+        {'method': 'GET',  'path': '/api/v1/auth/profile',            'auth': True,  'description': 'Get profile'},
+        {'method': 'GET',  'path': '/api/v1/auth/dashboard/summary',  'auth': True,  'description': 'Dashboard stats'},
+        {'method': 'GET',  'path': '/api/v1/auth/analytics/overview', 'auth': True,  'description': 'Analytics data'},
+        {'method': 'GET',  'path': '/api/v1/auth/notifications',      'auth': True,  'description': 'Notifications'},
+        {'method': 'GET',  'path': '/api/v1/auth/export/{resource}',  'auth': True,  'description': 'Export CSV'},
+        {'method': 'POST', 'path': '/api/v1/auth/import/{resource}',  'auth': True,  'description': 'Import CSV'},
+        {'method': 'GET',  'path': '/api/v1/departments',             'auth': True,  'description': 'List departments'},
+        {'method': 'GET',  'path': '/api/v1/outcomes',                'auth': True,  'description': 'List outcomes'},
+        {'method': 'GET',  'path': '/api/v1/signals',                 'auth': True,  'description': 'List signals'},
+        {'method': 'GET',  'path': '/api/v1/activities',              'auth': True,  'description': 'List activities'},
+        {'method': 'GET',  'path': '/api/v1/automations',             'auth': True,  'description': 'List automations'},
+        {'method': 'GET',  'path': '/api/v1/decisions',               'auth': True,  'description': 'List decisions'},
+        {'method': 'GET',  'path': '/api/v1/simulations',             'auth': True,  'description': 'List simulations'},
+        {'method': 'GET',  'path': '/api/v1/webhooks',                'auth': True,  'description': 'List webhooks'},
+        {'method': 'GET',  'path': '/api/v1/api-keys',                'auth': True,  'description': 'List API keys'},
+        {'method': 'GET',  'path': '/api/v1/admin/users',             'auth': True,  'description': 'Admin: users'},
+        {'method': 'GET',  'path': '/api/v1/admin/audit-log',         'auth': True,  'description': 'Admin: audit log'},
+        {'method': 'GET',  'path': '/api/v1/health',                  'auth': False, 'description': 'Health check'},
+    ]
+    return jsonify({
+        'name': 'AXIS API',
+        'version': '1.0.0',
+        'base_url': '/api/v1',
+        'auth': 'Bearer JWT token in Authorization header',
+        'endpoints': endpoints
+    }), 200

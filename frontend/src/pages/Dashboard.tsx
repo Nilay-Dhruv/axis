@@ -5,6 +5,7 @@ import type { RootState } from '../store/store'
 import dashboardService from '../services/dashboardService'
 import type { DashboardSummary } from '../services/dashboardService'
 import type { AxiosError } from 'axios'
+import OnboardingBanner from '../components/common/OnboardingBanner';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -16,7 +17,7 @@ interface StatCardProps {
   accent?: string
   onClick?: () => void
 }
-
+<OnboardingBanner />
 function StatCard({ label, value, sub, icon, accent = 'var(--neu-accent)', onClick }: StatCardProps): ReactElement {
   return (
     <button

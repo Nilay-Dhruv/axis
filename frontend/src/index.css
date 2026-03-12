@@ -319,3 +319,7 @@ body {
   .responsive-grid-4 { grid-template-columns: 1fr 1fr !important; }
   .hide-mobile { display: none !important; }
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

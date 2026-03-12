@@ -6,7 +6,7 @@ from flask_mail import Mail
 from flask_bcrypt import Bcrypt
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
+from app.cache import cache
 from .config import Config
 
 db = SQLAlchemy()
@@ -20,12 +20,16 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    app.config['CACHE_TYPE'] = 'SimpleCache'       # in-memory, no Redis needed
+    app.config['CACHE_DEFAULT_TIMEOUT'] = 300   
+
     # ── Extensions ─────────────────────────────
     db.init_app(app)
     jwt.init_app(app)
     bcrypt.init_app(app)
     limiter.init_app(app)
     mail.init_app(app)
+    cache.init_app(app) 
 
     # ── CORS (allow frontend requests) ─────────
     CORS(
