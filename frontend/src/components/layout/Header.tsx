@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import api from '../../services/api'
 import GlobalSearch from '../common/GlobalSearch'
 import NotificationCenter from '../common/NotificationCenter';
+// import ThemeToggle from '../common/ThemeToggle';
 const ROUTE_TITLES: Record<string, string> = {
   '/dashboard':   'Dashboard',
   '/departments': 'Departments',
@@ -109,7 +110,7 @@ export default function Header({ onMenuClick }: Props): ReactElement {
         }} />
         {criticalCount > 0 ? `${criticalCount} Critical` : 'Systems Online'}
       </div>
-
+        {/* <ThemeToggle /> */}
       {/* Notif button */}
       <div style={{ position: 'relative' }}>
         {/* <button
@@ -219,6 +220,7 @@ export default function Header({ onMenuClick }: Props): ReactElement {
                   </div>
                 ))
               )}
+              
 
               {/* Footer */}
               <div style={{

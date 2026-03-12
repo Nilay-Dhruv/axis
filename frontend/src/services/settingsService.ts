@@ -36,6 +36,9 @@ const settingsService = {
     )
     return response.data
   },
+  sendDigest() {
+  return api.post('/auth/send-digest')
+},
 }
 
 export default settingsService

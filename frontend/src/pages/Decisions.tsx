@@ -1,206 +1,209 @@
-import { type ReactElement } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  listDecisions, createDecision, deleteDecision, updateDecision, Decision
+} from '../services/decisionService';
 
-interface StepProps {
-  number: string
-  title:  string
-  desc:   string
+const STATUS_COLOR: Record<string, string> = {
+  open: '#5aa9c4', decided: '#4caf82', deferred: '#f5a623',
+};
+
+function SkeletonBlock({ height = 100 }: { height?: number }) {
+  return <div className="skeleton" style={{ height, borderRadius: 12, marginBottom: 16 }} />;
 }
 
-function DecisionStep({ number, title, desc }: StepProps): ReactElement {
+type DecisionCardProps = {
+  dec: Decision;
+  onDelete: (id: number) => void;
+  onStatusChange: (id: number, status: string) => void;
+};
+function DecisionCard({ dec, onDelete, onStatusChange }: DecisionCardProps) {
+  const navigate = useNavigate();
+  const color = STATUS_COLOR[dec.status] || '#888';
   return (
-    <div
-      style={{
-        display: 'flex', gap: 18, alignItems: 'flex-start',
-        padding: '20px 0',
-        borderBottom: '1px solid var(--neu-divider)',
-      }}
-    >
-      <div
-        style={{
-          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-          background: 'var(--neu-bg)',
-          boxShadow: 'var(--neu-shadow-out)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'Rajdhani', fontWeight: 800, fontSize: 16,
-          color: 'var(--neu-accent)',
-        }}
-      >
-        {number}
+    <div className="neu-card" style={{ padding: '20px 24px', cursor: 'pointer' }}
+      onClick={() => navigate(`/decisions/${dec.id}`)}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <h3 style={{ color: 'var(--neu-text-dark)', fontSize: 15, fontWeight: 700, margin: 0, flex: 1 }}>
+          {dec.title}
+        </h3>
+        <span style={{
+          background: color + '22', color, borderRadius: 12,
+          padding: '2px 10px', fontSize: 11, fontWeight: 600, marginLeft: 10
+        }}>
+          {dec.status.toUpperCase()}
+        </span>
       </div>
-      <div>
-        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--neu-text-dark)', marginBottom: 4 }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--neu-text-light)', lineHeight: 1.7 }}>
-          {desc}
-        </div>
+      {dec.description && (
+        <p style={{ color: 'var(--neu-text-mid)', fontSize: 12, margin: '0 0 12px' }}>{dec.description}</p>
+      )}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
+        <span style={{ color: 'var(--neu-text-light)', fontSize: 12 }}>📋 {dec.option_count} options</span>
+        <span style={{ color: 'var(--neu-text-light)', fontSize: 12 }}>⚖️ {dec.criteria_count} criteria</span>
+        {dec.decided_at && (
+          <span style={{ color: 'var(--neu-text-light)', fontSize: 12 }}>
+            ✅ {new Date(dec.decided_at).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
+        {dec.status === 'open' && (
+          <button onClick={() => onStatusChange(dec.id, 'decided')} style={{
+            background: '#4caf8222', border: 'none', borderRadius: 8,
+            color: '#4caf82', padding: '5px 12px', cursor: 'pointer', fontSize: 12
+          }}>Mark Decided</button>
+        )}
+        <button onClick={() => onDelete(dec.id)} style={{
+          background: '#e05c5c22', border: 'none', borderRadius: 8,
+          color: '#e05c5c', padding: '5px 12px', cursor: 'pointer', fontSize: 12
+        }}>Delete</button>
       </div>
     </div>
-  )
+  );
 }
 
-export default function Decisions(): ReactElement {
-  const navigate = useNavigate()
+export default function Decisions() {
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '', options: '', criteria: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    listDecisions()
+      .then(setDecisions)
+      .catch(() => setError('Failed to load decisions.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleCreate = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      const options = form.options.split(',').map(s => ({ title: s.trim() })).filter(o => o.title);
+      const criteria = form.criteria.split(',').map(s => ({ name: s.trim(), weight: 1.0 })).filter(c => c.name);
+      const d = await createDecision({ title: form.title, description: form.description, options, criteria });
+      setDecisions(prev => [d, ...prev]);
+      setShowForm(false);
+      setForm({ title: '', description: '', options: '', criteria: '' });
+    } catch { setError('Failed to create decision.'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this decision?')) return;
+    try {
+      await deleteDecision(id);
+      setDecisions(prev => prev.filter(d => d.id !== id));
+    } catch { setError('Failed to delete.'); }
+  };
+
+  const handleStatusChange = async (id: number, status: string) => {
+    try {
+      const updated = await updateDecision(id, { status });
+      setDecisions(prev => prev.map(d => d.id === id ? { ...d, ...updated } : d));
+    } catch { setError('Failed to update status.'); }
+  };
+
+  const inputStyle = {
+    background: 'var(--neu-bg)', border: '1px solid var(--neu-divider)',
+    borderRadius: 8, padding: '8px 12px', color: 'var(--neu-text-dark)',
+    fontSize: 13, outline: 'none', width: '100%'
+  };
+
+  const statusGroups = {
+    open: decisions.filter(d => d.status === 'open'),
+    decided: decisions.filter(d => d.status === 'decided'),
+    deferred: decisions.filter(d => d.status === 'deferred'),
+  };
 
   return (
-    <div className="neu-fade-up" style={{ maxWidth: 800, margin: '0 auto' }}>
-
-      {/* Hero */}
-      <div
-        style={{
-          background: 'var(--neu-bg)',
-          borderRadius: 24,
-          boxShadow: 'var(--neu-shadow-out)',
-          padding: '48px 40px',
-          marginBottom: 28,
-          textAlign: 'center',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute', bottom: -40, left: -40,
-            width: 220, height: 220, borderRadius: '50%',
-            background: 'rgba(126,200,227,0.10)',
-            filter: 'blur(35px)', pointerEvents: 'none',
-          }}
-        />
-
-        <div
-          style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 72, height: 72, borderRadius: '50%',
-            background: 'var(--neu-bg)',
-            boxShadow: 'var(--neu-shadow-out)',
-            fontSize: 32, marginBottom: 20,
-          }}
-        >
-          ◐
+    <div style={{ padding: '24px 32px', maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--neu-text-dark)', margin: 0 }}>Decisions</h1>
+          <p style={{ color: 'var(--neu-text-mid)', marginTop: 6, fontSize: 14 }}>
+            {decisions.length} total · {statusGroups.open.length} open
+          </p>
         </div>
-
-        <div
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'rgba(90,169,196,0.10)',
-            border: '1px solid rgba(90,169,196,0.3)',
-            borderRadius: 30, padding: '4px 14px',
-            fontSize: 10, fontFamily: 'Rajdhani', fontWeight: 700,
-            letterSpacing: '0.15em', color: 'var(--neu-accent)',
-            marginBottom: 16,
-          }}
-        >
-          ◆ COMING SOON — PREMIUM
-        </div>
-
-        <h1
-          style={{
-            fontSize: 30, fontWeight: 900, color: 'var(--neu-text-dark)',
-            letterSpacing: '-0.3px', marginBottom: 12,
-          }}
-        >
-          Decision Intelligence
-        </h1>
-        <p style={{ fontSize: 14, color: 'var(--neu-text-mid)', lineHeight: 1.7, maxWidth: 520, margin: '0 auto 28px' }}>
-          Frame complex decisions, gather structured input from stakeholders, and
-          use live data from your outcomes and signals to pick the best path forward.
-        </p>
-
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button
-            className="neu-btn-primary"
-            onClick={() => navigate('/settings')}
-            style={{ minWidth: 160 }}
-          >
-            ◆ UPGRADE PLAN
-          </button>
-          <button className="neu-btn-ghost" onClick={() => navigate('/dashboard')}>
-            ← Back to Dashboard
-          </button>
-        </div>
+        <button onClick={() => setShowForm(s => !s)} style={{
+          background: '#5aa9c4', border: 'none', borderRadius: 10,
+          color: '#fff', padding: '10px 20px', cursor: 'pointer', fontSize: 14, fontWeight: 600
+        }}>+ New Decision</button>
       </div>
 
-      {/* How it works */}
-      <div
-        style={{
-          background: 'var(--neu-bg)',
-          borderRadius: 20,
-          boxShadow: 'var(--neu-shadow-out)',
-          padding: '28px 32px',
-          marginBottom: 20,
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 11,
-            letterSpacing: '0.15em', color: 'var(--neu-text-light)',
-            textTransform: 'uppercase', marginBottom: 4,
-          }}
-        >
-          How It Works
+      {error && (
+        <div style={{ background: '#e05c5c22', border: '1px solid #e05c5c', borderRadius: 8, padding: '10px 16px', color: '#e05c5c', marginBottom: 20, fontSize: 13 }}>
+          {error}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--neu-text-mid)', marginBottom: 20 }}>
-          A structured 5-step decision framework, powered by your live data
-        </div>
+      )}
 
-        <DecisionStep
-          number="01"
-          title="Frame the Decision"
-          desc="Define the question, the stakeholders involved, the deadline, and the criteria that matter most."
-        />
-        <DecisionStep
-          number="02"
-          title="Pull Live Context"
-          desc="AXIS automatically surfaces relevant outcomes, signal states, and recent activity logs tied to the decision domain."
-        />
-        <DecisionStep
-          number="03"
-          title="Gather Input"
-          desc="Invite team members to weigh in asynchronously. Each person scores options against defined criteria with optional reasoning."
-        />
-        <DecisionStep
-          number="04"
-          title="Score & Rank"
-          desc="The engine aggregates weighted scores, surfaces consensus, flags outliers, and ranks options by composite fit."
-        />
-        <DecisionStep
-          number="05"
-          title="Commit & Track"
-          desc="Once a decision is committed, AXIS creates linked activities and tracks outcomes — closing the loop automatically."
-        />
-      </div>
-
-      {/* Use cases */}
-      <div
-        style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14,
-        }}
-      >
-        {[
-          { icon: '💰', label: 'Budget Allocation',    desc: 'Compare ROI across departments' },
-          { icon: '🧑‍🤝‍🧑', label: 'Hiring Decisions',   desc: 'Score candidates against criteria' },
-          { icon: '🚀', label: 'Product Priorities',   desc: 'Rank features by strategic fit'   },
-          { icon: '⚖️', label: 'Risk Trade-offs',      desc: 'Weigh options against signals'    },
-        ].map((uc) => (
-          <div
-            key={uc.label}
-            style={{
-              background: 'var(--neu-bg)',
-              borderRadius: 14,
-              boxShadow: 'var(--neu-shadow-out)',
-              padding: '18px 20px',
-              display: 'flex', gap: 12, alignItems: 'center',
-            }}
-          >
-            <span style={{ fontSize: 24 }}>{uc.icon}</span>
+      {showForm && (
+        <div className="neu-card" style={{ padding: 24, marginBottom: 28 }}>
+          <h3 style={{ color: 'var(--neu-text-dark)', marginBottom: 20, fontSize: 15, fontWeight: 700 }}>New Decision</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--neu-text-dark)' }}>{uc.label}</div>
-              <div style={{ fontSize: 11, color: 'var(--neu-text-light)', marginTop: 2 }}>{uc.desc}</div>
+              <label style={{ color: 'var(--neu-text-mid)', fontSize: 12, display: 'block', marginBottom: 6 }}>Title *</label>
+              <input style={inputStyle} placeholder="Decision title"
+                value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ color: 'var(--neu-text-mid)', fontSize: 12, display: 'block', marginBottom: 6 }}>Description</label>
+              <input style={inputStyle} placeholder="What needs to be decided?"
+                value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ color: 'var(--neu-text-mid)', fontSize: 12, display: 'block', marginBottom: 6 }}>
+                Options <span style={{ color: 'var(--neu-text-light)' }}>(comma-separated)</span>
+              </label>
+              <input style={inputStyle} placeholder="Option A, Option B, Option C"
+                value={form.options} onChange={e => setForm(f => ({ ...f, options: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ color: 'var(--neu-text-mid)', fontSize: 12, display: 'block', marginBottom: 6 }}>
+                Criteria <span style={{ color: 'var(--neu-text-light)' }}>(comma-separated)</span>
+              </label>
+              <input style={inputStyle} placeholder="Cost, Speed, Risk"
+                value={form.criteria} onChange={e => setForm(f => ({ ...f, criteria: e.target.value }))} />
             </div>
           </div>
-        ))}
-      </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleCreate} disabled={saving} style={{
+              background: '#4caf82', border: 'none', borderRadius: 8, color: '#fff',
+              padding: '8px 20px', cursor: 'pointer', fontSize: 13, fontWeight: 600
+            }}>{saving ? 'Creating…' : 'Create'}</button>
+            <button onClick={() => setShowForm(false)} style={{
+              background: 'var(--neu-bg)', border: '1px solid var(--neu-divider)',
+              borderRadius: 8, color: 'var(--neu-text-mid)', padding: '8px 16px', cursor: 'pointer', fontSize: 13
+            }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px,1fr))', gap: 16 }}>
+          {[...Array(4)].map((_, i) => <SkeletonBlock key={i} />)}
+        </div>
+      ) : decisions.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--neu-text-light)' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⚖️</div>
+          <p>No decisions yet. Create your first decision above.</p>
+        </div>
+      ) : (
+        Object.entries(statusGroups).map(([status, items]) => items.length > 0 && (
+          <div key={status} style={{ marginBottom: 32 }}>
+            <h2 style={{ color: STATUS_COLOR[status], fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
+              {status} ({items.length})
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px,1fr))', gap: 16 }}>
+              {items.map(d => (
+                <DecisionCard key={d.id} dec={d} onDelete={handleDelete} onStatusChange={handleStatusChange} />
+              ))}
+            </div>
+          </div>
+        ))
+      )}
     </div>
-  )
+  );
 }

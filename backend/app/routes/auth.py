@@ -7,7 +7,7 @@ from app.middleware.auth_middleware import jwt_required_custom
 from marshmallow import ValidationError
 from app.schemas.user_schema import RegisterSchema, LoginSchema
 from app.services.auth_service import AuthService
-
+from app import db
 auth_bp = Blueprint('auth', __name__)
 
 register_schema = RegisterSchema()
@@ -485,3 +485,191 @@ def get_notifications():
 
     notifications.sort(key=lambda x: x['timestamp'], reverse=True)
     return jsonify({'notifications': notifications[:20], 'unread_count': len(notifications)}), 200
+
+
+@auth_bp.route('/export/<resource>', methods=['GET', 'OPTIONS'])
+@jwt_required(optional=True)
+def export_resource(resource):
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+
+    import csv, io
+    from flask import Response
+    from app.models.outcome import Outcome
+    from app.models.signal import Signal
+    from app.models.activity import Activity
+    from app.models.department import Department
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    if resource == 'outcomes':
+        writer.writerow(['ID', 'Title', 'Status', 'Progress', 'Department', 'Created At'])
+        for o in Outcome.query.all():
+            dept = Department.query.get(o.department_id)
+            writer.writerow([o.id, o.title, o.status, o.progress or 0,
+                             dept.name if dept else '', o.created_at or ''])
+
+    elif resource == 'signals':
+        writer.writerow(['ID', 'Name', 'Status', 'Value', 'Threshold', 'Created At'])
+        for s in Signal.query.all():
+            writer.writerow([s.id, s.name, s.status, s.value or '', s.threshold or '', s.created_at or ''])
+
+    elif resource == 'activities':
+        writer.writerow(['ID', 'Title', 'Status', 'Department', 'Created At'])
+        for a in Activity.query.all():
+            dept = Department.query.get(a.department_id) if hasattr(a, 'department_id') else None
+            writer.writerow([a.id, a.title, a.status, dept.name if dept else '', a.created_at or ''])
+
+    elif resource == 'departments':
+        writer.writerow(['ID', 'Name', 'Head', 'Description', 'Created At'])
+        for d in Department.query.all():
+            writer.writerow([d.id, d.name, getattr(d, 'head', ''), d.description or '', d.created_at or ''])
+    else:
+        return jsonify({'error': 'Unknown resource'}), 400
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={resource}_export.csv'}
+    )
+
+
+
+@auth_bp.route('/import/<resource>', methods=['POST', 'OPTIONS'])
+@jwt_required(optional=True)
+def import_resource(resource):
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+
+    import csv, io
+    from app.models.outcome import Outcome
+    from app.models.department import Department
+
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'No file provided'}), 400
+
+    content = file.read().decode('utf-8')
+    reader = csv.DictReader(io.StringIO(content))
+    rows = list(reader)
+    created = 0
+    errors = []
+
+    if resource == 'outcomes':
+        for i, row in enumerate(rows):
+            try:
+                dept = Department.query.filter_by(name=row.get('Department', '')).first()
+                o = Outcome(
+                    title=row.get('Title') or row.get('title'),
+                    status=row.get('Status', 'active').lower(),
+                    progress=int(row.get('Progress', 0)),
+                    department_id=dept.id if dept else None
+                )
+                db.session.add(o)
+                created += 1
+            except Exception as e:
+                errors.append(f'Row {i+2}: {str(e)}')
+
+    elif resource == 'departments':
+        for i, row in enumerate(rows):
+            try:
+                d = Department(
+                    name=row.get('Name') or row.get('name'),
+                    description=row.get('Description', ''),
+                    head=row.get('Head', '')
+                )
+                db.session.add(d)
+                created += 1
+            except Exception as e:
+                errors.append(f'Row {i+2}: {str(e)}')
+    else:
+        return jsonify({'error': 'Import not supported for this resource'}), 400
+
+    db.session.commit()
+    return jsonify({'created': created, 'errors': errors}), 200
+
+
+@auth_bp.route('/send-digest', methods=['POST', 'OPTIONS'])
+@jwt_required(optional=True)
+def send_digest():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+    from app.utils.email import send_alert_digest
+    from app.models.signal import Signal
+    from app.models.outcome import Outcome
+    from flask_jwt_extended import get_jwt_identity
+    from app.models.user import User
+
+    uid = get_jwt_identity()
+    user = User.query.get(uid)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    alerts = []
+    for s in Signal.query.filter_by(status='critical').limit(5).all():
+        alerts.append({'title': f'Critical Signal: {s.name}', 'type': 'critical'})
+    for o in Outcome.query.filter_by(status='at_risk').limit(5).all():
+        alerts.append({'title': f'At-Risk Outcome: {o.title}', 'type': 'warning'})
+
+    if not alerts:
+        return jsonify({'message': 'No alerts to send'}), 200
+
+    email = getattr(user, 'email', None)
+    if not email:
+        return jsonify({'error': 'No email on file'}), 400
+
+    ok = send_alert_digest(email, alerts)
+    return jsonify({'message': 'Digest sent' if ok else 'Send failed', 'alert_count': len(alerts)}), 200 if ok else 500
+
+
+
+
+@auth_bp.route('/2fa/setup', methods=['GET', 'OPTIONS'])
+@jwt_required(optional=True)
+def setup_2fa():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+    import pyotp, qrcode, io, base64
+    from flask_jwt_extended import get_jwt_identity
+    from app.models.user import User
+
+    uid = get_jwt_identity()
+    user = User.query.get(uid)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    secret = pyotp.random_base32()
+    email = getattr(user, 'email', 'user@axis.app')
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name=email, issuer_name='AXIS')
+
+    # Generate QR code as base64
+    qr = qrcode.QRCode(version=1, box_size=6, border=2)
+    qr.add_data(uri)
+    qr.make(fit=True)
+    img = qr.make_image(fill='black', back_color='white')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    qr_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    # Store secret temporarily — in production, save to user model
+    # For now return secret so frontend can confirm
+    return jsonify({'secret': secret, 'qr_code': qr_b64, 'uri': uri}), 200
+
+
+@auth_bp.route('/2fa/verify', methods=['POST', 'OPTIONS'])
+@jwt_required(optional=True)
+def verify_2fa():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+    import pyotp
+    data = request.get_json()
+    secret = data.get('secret')
+    code = data.get('code')
+    if not secret or not code:
+        return jsonify({'error': 'Missing secret or code'}), 400
+    totp = pyotp.TOTP(secret)
+    valid = totp.verify(code, valid_window=1)
+    return jsonify({'valid': valid, 'message': '2FA verified successfully' if valid else 'Invalid code'}), 200

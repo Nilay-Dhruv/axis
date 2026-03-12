@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import type { RootState } from '../store/store'
 import settingsService from '../services/settingsService'
 import type { AxiosError } from 'axios'
+import TwoFactor from '../pages/TwoFactor'
 
 // ─── Sub-components defined OUTSIDE main component ───────────────────────────
 
@@ -247,6 +248,8 @@ export default function Settings(): ReactElement {
     activityUpdates:  true,
     outcomeAchieved:  true,
   })
+  const [digestSending, setDigestSending] = useState(false)
+  const [digestMsg, setDigestMsg] = useState('')
 
   // Appearance preferences (local only)
   const [appearance, setAppearance] = useState({
@@ -291,6 +294,20 @@ export default function Settings(): ReactElement {
       setPwError(error.response?.data?.error?.message ?? 'Failed to change password')
     } finally {
       setPwSaving(false)
+    }
+  }
+  const sendDigest = async () => {
+    setDigestSending(true)
+    setDigestMsg('')
+
+    try {
+      await settingsService.sendDigest()   // cleaner than raw axios
+      setDigestMsg('◆ Digest sent to your email')
+    } catch {
+      setDigestMsg('⚠ Failed to send digest')
+    } finally {
+      setDigestSending(false)
+      setTimeout(() => setDigestMsg(''), 4000)
     }
   }
 
@@ -685,7 +702,23 @@ export default function Settings(): ReactElement {
               {pwSaving ? 'UPDATING...' : 'UPDATE PASSWORD'}
             </button>
           </>
+          <div
+          style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  marginBottom: 16,
+                }}
+          >
+
+          </div>
+          <SettingsSection
+          title="Two-Step Verification"
+          subtitle="Add an extra layer of security to your account">
+          <TwoFactor />
         </SettingsSection>
+        </SettingsSection>
+        
       )}
 
       {/* ── Notifications Tab ────────────────────────────────────── */}
@@ -745,6 +778,61 @@ export default function Settings(): ReactElement {
               }}
             >
               ◈ Notification delivery via email is coming in a future update. These preferences will be applied then.
+            </div>
+            <div
+              style={{
+                marginTop: 20,
+                padding: '18px 20px',
+                borderRadius: 12,
+                background: 'var(--neu-bg)',
+                boxShadow: 'var(--neu-shadow-in)',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'Rajdhani',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  letterSpacing: '0.08em',
+                  color: 'var(--neu-text-dark)',
+                  marginBottom: 6,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Email Alert Digest
+              </div>
+
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--neu-text-light)',
+                  marginBottom: 14,
+                  lineHeight: 1.5,
+                }}
+              >
+                Send yourself a summary of critical signals and at-risk outcomes.
+              </div>
+
+              {digestMsg && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    marginBottom: 12,
+                    color: digestMsg.includes('Failed') ? '#b44646' : '#468c64',
+                  }}
+                >
+                  {digestMsg}
+                </div>
+              )}
+
+              <button
+                onClick={sendDigest}
+                disabled={digestSending}
+                className="neu-btn-primary"
+                style={{ minWidth: 180 }}
+              >
+                {digestSending ? 'SENDING...' : 'SEND ALERT DIGEST'}
+              </button>
             </div>
           </>
         </SettingsSection>

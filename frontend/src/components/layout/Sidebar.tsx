@@ -35,7 +35,10 @@ const NAV: NavGroup[] = [
       { label: 'Outcomes',    path: '/outcomes',    icon: '◆' },
       { label: 'Signals',     path: '/signals',     icon: '▲' },
       { label: 'Analytics',   path: '/analytics',   icon: '◷' },
-      { path: '/activity-logs', label: 'Activity Logs', icon:'◷'}
+      { path: '/activity-logs', label: 'Activity Logs', icon:'◷'},
+      { path: '/import', label: 'Data Import', icon: '📥' },
+      { path: '/reports', label: 'Reports', icon: '📊' },
+      { path: '/webhooks', label: 'Webhooks', icon: '🔗' }
     ],
   },
   {
@@ -44,6 +47,7 @@ const NAV: NavGroup[] = [
       { label: 'Automations', path: '/automations', icon: '⚙', locked: true },
       { label: 'Decisions',   path: '/decisions',   icon: '◐', locked: true },
       { label: 'Simulations', path: '/simulations', icon: '◑', locked: true },
+      
     ],
   },
   {
@@ -52,7 +56,8 @@ const NAV: NavGroup[] = [
       { label: 'Roles',     path: '/roles',     icon: '◧' },
       { label: 'Settings',  path: '/settings',  icon: '◫' },
       { path: '/admin/users', label: 'User Management', icon: '👥', adminOnly: true },
-      { path: '/admin/audit-log', label: 'Audit Log', icon: '📋', adminOnly: true }
+      { path: '/admin/audit-log', label: 'Audit Log', icon: '📋', adminOnly: true },
+      { path: '/api-keys', label: 'API Keys', icon: '🔑' },
     ],
   },
 ]
@@ -61,6 +66,7 @@ export default function Sidebar({ isOpen, onClose }: Props): ReactElement {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const user     = useAppSelector((s) => s.auth.user)
+  
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()

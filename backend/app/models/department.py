@@ -15,7 +15,7 @@ class Department(db.Model):
     config = db.Column(db.JSON, default={})
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    description = db.Column(db.Text)
     activities = db.relationship('Activity', backref='department', lazy=True, cascade='all, delete-orphan')
     outcomes = db.relationship('Outcome', backref='department', lazy=True, cascade='all, delete-orphan')
 

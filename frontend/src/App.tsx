@@ -23,6 +23,12 @@ import SignalDetail from './pages/SignalDetail';
 import DepartmentDetail from './pages/DepartmentDetail';
 import UserManagement from './pages/UserManagement';
 import AuditLog from './pages/AuditLog';
+import DecisionDetail from './pages/DecisionDetail';
+import Reports from './pages/Reports';
+import DataImport from './pages/DataImport';
+import Webhooks from './pages/Webhooks';
+import ApiKeys from './pages/ApiKeys';
+import TwoFactor from './pages/TwoFactor';
 
 export default function App() {
   return (
@@ -55,6 +61,12 @@ export default function App() {
           <Route path="/departments/:id" element={<DepartmentDetail />} />
           <Route path="/admin/users" element={<UserManagement />} />
           <Route path="/admin/audit-log" element={<AuditLog />} />
+          <Route path="/decisions/:id" element={<DecisionDetail />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/import" element={<DataImport />} />
+          <Route path="/webhooks" element={<Webhooks />} />
+          <Route path="/api-keys" element={<ApiKeys />} />
+          <Route path="/settings/2fa" element={<TwoFactor />} />
           <Route path="*" element={<NotFound />} />
         </Route>
 

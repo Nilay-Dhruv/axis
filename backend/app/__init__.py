@@ -62,6 +62,28 @@ def create_app(config_class=Config):
     from app.routes.admin import admin_bp
     app.register_blueprint(admin_bp)
 
+    from app.routes.automations import automations_bp
+    app.register_blueprint(automations_bp)
+
+    from app.routes.decisions import decisions_bp
+    from app.models.decision import Decision, DecisionOption, DecisionCriteria, DecisionScore
+    app.register_blueprint(decisions_bp)
+
+    from app.routes.simulations import simulations_bp
+    from app.models.simulation import Simulation, SimulationSnapshot
+    app.register_blueprint(simulations_bp)
+
+    from app.routes.webhooks import webhooks_bp
+    from app.models.webhook import Webhook, WebhookDelivery
+    app.register_blueprint(webhooks_bp)
+
+    from app.routes.api_keys import api_keys_bp
+    from app.models.api_key import ApiKey
+    app.register_blueprint(api_keys_bp)
+
+    # Also import model so Alembic sees it:
+    from app.models.automation import Automation, AutomationRun
+
     from app.models.audit_log import AuditLog
 
     # ── Error Handlers ─────────────────────────
