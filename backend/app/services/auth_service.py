@@ -35,28 +35,21 @@ class AuthService:
 
     @staticmethod
     def login(email, password):
-        user = User.query.filter_by(email=email.lower()).first()
 
-        if not user:
-            return None, None, "Invalid email or password"
+        user = User.query.filter_by(email=email).first()
 
-        if not user.is_active:
-            return None, None, "Account is deactivated"
-
-        if not user.check_password(password):
-            return None, None, "Invalid email or password"
-
-        # Generate tokens
-        additional_claims = {
-            "email": user.email,
-            "organization_id": str(user.organization_id) if user.organization_id else None,
-            "subscription_tier": user.subscription_tier,
-        }
+        if not user or not user.check_password(password):
+            return None, None, "Invalid credentials"
 
         access_token = create_access_token(
-            identity=str(user.id),
-            additional_claims=additional_claims
+            identity=str(user.id),   # IMPORTANT: must be string UUID
+            additional_claims={
+                "email": user.email,
+                "organization_id": str(user.organization_id) if user.organization_id else None,
+                "subscription_tier": user.subscription_tier
+            }
         )
+
         refresh_token = create_refresh_token(identity=str(user.id))
 
         return access_token, refresh_token, None

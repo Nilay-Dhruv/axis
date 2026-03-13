@@ -63,20 +63,20 @@ export default function Login(): ReactElement {
       <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 440 }}>
 
         {/* Logo mark */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
-          <div style={{
-            width: 56,
-            height: 56,
-            borderRadius: '50%',
-            background: 'var(--neu-bg, #e6ecf3)',
-            boxShadow: '6px 6px 16px #c3cdd8, -6px -6px 16px #ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 26,
-          }}>
-            ◈
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <div
+            style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: '#ffffff',
+              boxShadow: '4px 4px 10px #c3c9d1, -4px -4px 10px #ffffff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
+            }}
+          >
+            <img src="/logo.jpeg" alt="AXIS" style={{ width: 58, height: 58, objectFit: 'contain' }} />
           </div>
+        
+
         </div>
 
         {/* Card */}

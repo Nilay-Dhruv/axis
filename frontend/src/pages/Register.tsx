@@ -1,407 +1,433 @@
 import { useState, type ReactElement } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { registerUser } from '../store/authSlice'
+import { useNavigate, Link } from 'react-router-dom'
+import api from '../services/api'
 
-const schema = z.object({
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
-  email:     z.string().email('Invalid email address'),
-  password:  z.string()
-    .min(8, 'At least 8 characters')
-    .regex(/[A-Z]/, 'Need one uppercase letter')
-    .regex(/[0-9]/, 'Need one number'),
-  confirm: z.string(),
-}).refine((d) => d.password === d.confirm, {
-  message: 'Passwords do not match',
-  path: ['confirm'],
-})
-type FormData = z.infer<typeof schema>
+// ─── Password helpers ─────────────────────────────────────────────────────────
 
-function NeuInput({
-  icon, placeholder, type = 'text', error,
-  registration, rightEl,
-}: {
-  icon: string
-  placeholder: string
-  type?: string
-  error?: string
-  registration: ReturnType<ReturnType<typeof useForm<FormData>>['register']>
-  rightEl?: ReactElement
-}): ReactElement {
-  return (
-    <div>
-      <div style={{
-        background: '#e6ecf3',
-        borderRadius: 30,
-        boxShadow: 'inset 6px 6px 14px #c3cdd8, inset -6px -6px 14px #ffffff',
-        padding: '12px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-      }}>
-        <span style={{ fontSize: 14, color: '#8096aa', flexShrink: 0 }}>{icon}</span>
-        <input
-          {...registration}
-          type={type}
-          placeholder={placeholder}
-          style={{
-            flex: 1,
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            fontSize: 13,
-            color: '#1a2635',
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-          }}
-        />
-        {rightEl}
-      </div>
-      {error && (
-        <p style={{ fontSize: 11, color: '#b92c2c', marginTop: 4, paddingLeft: 12 }}>
-          {error}
-        </p>
-      )}
-    </div>
-  )
+function getPasswordStrength(password: string): number {
+  let s = 0
+  if (password.length >= 8)                       s++
+  if (/[A-Z]/.test(password))                     s++
+  if (/[a-z]/.test(password))                     s++
+  if (/[0-9]/.test(password))                     s++
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(password))   s++
+  return s
 }
 
+function validatePassword(password: string): string | null {
+  if (password.length < 8)                        return 'Password must be at least 8 characters long'
+  if (!/[A-Z]/.test(password))                    return 'Password must contain at least one uppercase letter'
+  if (!/[a-z]/.test(password))                    return 'Password must contain at least one lowercase letter'
+  if (!/[0-9]/.test(password))                    return 'Password must contain at least one digit'
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password))  return 'Password must contain at least one special character'
+  return null
+}
+
+const strengthColors = ['#e74c3c', '#e67e22', '#f1c40f', '#27ae60', '#27ae60']
+const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong']
+
+// ─── Shared styles (exact from reference) ────────────────────────────────────
+
+const fieldStyle: React.CSSProperties = {
+  borderRadius: 50,
+  background: '#e6ecf3',
+  boxShadow: 'inset 6px 6px 12px #c3c9d1, inset -6px -6px 12px #ffffff',
+  padding: '0 22px',
+  height: 50,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'transparent',
+  border: 'none',
+  outline: 'none',
+  fontSize: 14,
+  color: '#374151',
+  fontFamily: 'inherit',
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function Register(): ReactElement {
-  const dispatch  = useAppDispatch()
-  const navigate  = useNavigate()
-  const { loading, error, registrationSuccess } = useAppSelector((s) => s.auth)
-  const [showPass, setShowPass]     = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const navigate = useNavigate()
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  const [formData, setFormData] = useState({
+    name:            '',
+    email:           '',
+    password:        '',
+    confirmPassword: '',
+    phone:           '',
   })
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [showConf, setShowConf] = useState(false)
 
-  const onSubmit = async (data: FormData) => {
-    await dispatch(registerUser({
-      full_name: data.full_name,
-      email:     data.email,
-      password:  data.password,
-    }))
+  const passwordStrength = getPasswordStrength(formData.password)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    setError('')
   }
 
-  if (registrationSuccess) {
-    return (
-      <div style={{
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (!formData.name.trim())  return setError('Name is required')
+    if (!formData.email.trim()) return setError('Email is required')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+                                return setError('Please enter a valid email address')
+    const passwordError = validatePassword(formData.password)
+    if (passwordError)          return setError(passwordError)
+    if (formData.password !== formData.confirmPassword)
+                                return setError('Passwords do not match')
+
+    setLoading(true)
+    try {
+      const response = await api.post('/auth/register', {
+        name:     formData.name,
+        email:    formData.email,
+        password: formData.password,
+      })
+
+      // Optionally trigger verification email
+      if (response.data.user?.id) {
+        await api.post('/auth/send-verification-email', { user_id: response.data.user.id })
+          .catch(() => {/* optional */})
+      }
+
+      navigate('/login', {
+        state: {
+          registered:  true,
+          email:       formData.email,
+          isFirstUser: response.data.role === 'admin',
+        },
+      })
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Registration failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const passwordsMatch = formData.confirmPassword && formData.password === formData.confirmPassword
+  const passwordsDiff  = formData.confirmPassword && formData.password !== formData.confirmPassword
+
+  return (
+    <div
+      style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #dde8f4 0%, #e8eef8 40%, #d8e4f0 70%, #e2ecf6 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-      }}>
-        <div style={{
-          background: '#e6ecf3',
-          borderRadius: 28,
-          boxShadow: '10px 10px 28px #c3cdd8, -10px -10px 28px #ffffff',
-          padding: '48px 40px',
-          maxWidth: 400,
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a2635', marginBottom: 8 }}>
-            Account Created!
-          </h2>
-          <p style={{ fontSize: 13, color: '#8096aa', marginBottom: 28, lineHeight: 1.6 }}>
-            Your AXIS workspace is ready. Sign in to get started.
-          </p>
-          <button
-            onClick={() => navigate('/login')}
-            style={{
-              background: '#5aa9c4',
-              color: 'white',
-              border: 'none',
-              borderRadius: 30,
-              padding: '12px 32px',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '4px 4px 10px #c8d2de, -4px -4px 10px #ffffff',
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}
-          >
-            Sign In →
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #dde8f4 0%, #e8eef8 40%, #d8e4f0 70%, #e2ecf6 100%)',
-      display: 'flex',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-    }}>
-
-      {/* Left branding panel */}
-      <div style={{
-        width: '44%',
-        background: 'linear-gradient(145deg, #4a94ad 0%, #5aa9c4 50%, #7ec8e3 100%)',
-        padding: '48px 44px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
+        padding: '40px 16px',
+        background: 'linear-gradient(135deg, #dce8f5 0%, #e8f0f8 40%, #d0e4f0 100%)',
         position: 'relative',
         overflow: 'hidden',
       }}
-        className="hidden-mobile"
-      >
-        {/* Decorative circles */}
-        {[
-          { size: 320, top: '-80px', right: '-80px', opacity: 0.12 },
-          { size: 200, bottom: '10%', left: '-60px',  opacity: 0.1  },
-          { size: 140, top: '42%',   right: '8%',    opacity: 0.08 },
-        ].map((c, i) => (
-          <div key={i} style={{
-            position: 'absolute',
-            width: c.size, height: c.size,
-            borderRadius: '50%',
-            background: 'white',
-            opacity: c.opacity,
-            top:    c.top,
-            right:  (c as { right?: string }).right,
-            bottom: (c as { bottom?: string }).bottom,
-            left:   (c as { left?: string }).left,
-          }} />
-        ))}
-
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            marginBottom: 4,
-          }}>
-            <span style={{ fontSize: 24, color: 'white' }}>◈</span>
-            <span style={{ fontSize: 18, fontWeight: 800, color: 'white', letterSpacing: '0.5px' }}>
-              AXIS
-            </span>
-          </div>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', letterSpacing: '0.8px' }}>
-            CENTRAL INTELLIGENCE SYSTEM
-          </p>
-        </div>
-
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <h2 style={{
-            fontSize: 32,
-            fontWeight: 800,
-            color: 'white',
-            lineHeight: 1.25,
-            marginBottom: 16,
-            letterSpacing: '-0.3px',
-          }}>
-            Centralize your<br />operations.<br />Amplify your outcomes.
-          </h2>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, maxWidth: 280 }}>
-            One command center for departments, activities, signals, and decisions.
-          </p>
-
-          {/* Feature pills */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 24 }}>
-            {['Departments', 'Outcomes', 'Signals', 'Analytics', 'Roles'].map((f) => (
-              <span key={f} style={{
-                background: 'rgba(255,255,255,0.18)',
-                color: 'white',
-                borderRadius: 30,
-                padding: '5px 12px',
-                fontSize: 11,
-                fontWeight: 600,
-                border: '1px solid rgba(255,255,255,0.25)',
-              }}>
-                {f}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <p style={{ position: 'relative', zIndex: 1, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
-          © 2026 AXIS. All rights reserved.
-        </p>
+    >
+      {/* ── Ambient blobs — identical to login page ─────────── */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -80,  left: -80,  width: 500, height: 500, background: 'rgba(147,197,253,0.30)', borderRadius: '50%', filter: 'blur(80px)' }} />
+        <div style={{ position: 'absolute', top:  40,  right: -80, width: 500, height: 500, background: 'rgba(165,180,252,0.25)', borderRadius: '50%', filter: 'blur(80px)' }} />
+        <div style={{ position: 'absolute', bottom: 0, left: '33%',width: 500, height: 500, background: 'rgba(103,232,249,0.20)', borderRadius: '50%', filter: 'blur(80px)' }} />
       </div>
 
-      {/* Right form panel */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px 24px',
-        overflowY: 'auto',
-      }}>
-        <div style={{ width: '100%', maxWidth: 420 }}>
-
-          {/* Mobile logo */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: '50%',
-              background: '#e6ecf3',
-              boxShadow: '6px 6px 16px #c3cdd8, -6px -6px 16px #ffffff',
+      {/* ── Card ────────────────────────────────────────────── */}
+      <div
+        style={{
+          position: 'relative',
+          width: '490px',
+          maxWidth: 460,
+          background: '#e6ecf3',
+          borderRadius: 28,
+          boxShadow: '8px 8px 24px #c3c9d1, -8px -8px 24px #ffffff',
+          padding: '40px 36px 36px',
+        }}
+      >
+        {/* Logo */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <div
+            style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: '#ffffff',
+              boxShadow: '4px 4px 10px #c3c9d1, -4px -4px 10px #ffffff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22, color: '#5aa9c4',
-            }}>
-              ◈
-            </div>
+              overflow: 'hidden',
+            }}
+          >
+            <img src="/logo.jpeg" alt="AXIS" style={{ width: 58, height: 58, objectFit: 'contain' }} />
+          </div>
+        </div>
+
+        {/* Heading */}
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 26, fontWeight: 700, color: '#1e2d3d', margin: '0 0 4px', letterSpacing: '-0.3px' }}>
+            AXIS
+          </h2>
+          <p style={{ fontSize: 13.5, color: '#8a96a3', margin: 0 }}>Create your account</p>
+        </div>
+
+        {/* First-user info note */}
+        <div
+          style={{
+            background: 'rgba(90,169,196,0.10)',
+            border: '1px solid rgba(90,169,196,0.25)',
+            borderRadius: 14,
+            padding: '9px 14px',
+            marginBottom: 16,
+            fontSize: 12,
+            color: '#3a7d96',
+            lineHeight: 1.5,
+          }}
+        >
+          ◈ <strong>First registered user becomes Admin.</strong> All others start as Staff — an admin can assign roles from User Management.
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div
+            style={{
+              background: '#fdecea',
+              border: '1px solid #f5c6c6',
+              borderRadius: 14,
+              padding: '10px 16px',
+              marginBottom: 16,
+              fontSize: 12.5,
+              color: '#c0392b',
+              fontWeight: 600,
+            }}
+          >
+            ⚠️ {error}
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Full Name */}
+          <div style={fieldStyle}>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="Full Name"
+              autoComplete="name"
+              style={inputStyle}
+            />
           </div>
 
-          {/* Card */}
-          <div style={{
-            background: '#e6ecf3',
-            borderRadius: 28,
-            boxShadow: '10px 10px 28px #c3cdd8, -10px -10px 28px #ffffff',
-            padding: '36px 32px',
-          }}>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a2635', marginBottom: 4 }}>
-              Create your account
-            </h2>
-            <p style={{ fontSize: 13, color: '#8096aa', marginBottom: 28 }}>
-              Get started with AXIS in seconds
-            </p>
+          {/* Email */}
+          <div style={fieldStyle}>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Email Address"
+              autoComplete="email"
+              style={inputStyle}
+            />
+          </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Phone */}
+          {/* <div style={fieldStyle}>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              placeholder="Phone Number (optional)"
+              autoComplete="tel"
+              style={inputStyle}
+            />
+          </div> */}
 
-              {/* Full name */}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#4a5e72', letterSpacing: '0.6px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>
-                  Full Name
-                </label>
-                <NeuInput
-                  icon="👤"
-                  placeholder="John Smith"
-                  registration={register('full_name')}
-                  error={errors.full_name?.message}
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#4a5e72', letterSpacing: '0.6px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>
-                  Email
-                </label>
-                <NeuInput
-                  icon="✉"
-                  placeholder="you@company.com"
-                  type="email"
-                  registration={register('email')}
-                  error={errors.email?.message}
-                />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#4a5e72', letterSpacing: '0.6px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>
-                  Password
-                </label>
-                <NeuInput
-                  icon="🔒"
-                  placeholder="Min 8 chars, 1 uppercase, 1 number"
-                  type={showPass ? 'text' : 'password'}
-                  registration={register('password')}
-                  error={errors.password?.message}
-                  rightEl={
-                    <button type="button" onClick={() => setShowPass((p) => !p)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#8096aa', padding: 0 }}>
-                      {showPass ? '🙈' : '👁'}
-                    </button>
-                  }
-                />
-              </div>
-
-              {/* Confirm password */}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#4a5e72', letterSpacing: '0.6px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>
-                  Confirm Password
-                </label>
-                <NeuInput
-                  icon="🔒"
-                  placeholder="Repeat password"
-                  type={showConfirm ? 'text' : 'password'}
-                  registration={register('confirm')}
-                  error={errors.confirm?.message}
-                  rightEl={
-                    <button type="button" onClick={() => setShowConfirm((p) => !p)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#8096aa', padding: 0 }}>
-                      {showConfirm ? '🙈' : '👁'}
-                    </button>
-                  }
-                />
-              </div>
-
-              {/* API error */}
-              {error && (
-                <div style={{
-                  background: '#fdeaea',
-                  border: '1px solid #f5c6c6',
-                  borderRadius: 12,
-                  padding: '10px 14px',
-                  fontSize: 12,
-                  color: '#b92c2c',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}>
-                  ⚠ {error}
-                </div>
-              )}
-
-              {/* Submit */}
+          {/* Password */}
+          <div>
+            <div style={fieldStyle}>
+              <input
+                type={showPass ? 'text' : 'password'}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Password"
+                autoComplete="new-password"
+                style={inputStyle}
+              />
               <button
-                type="submit"
-                disabled={loading}
+                type="button"
+                onClick={() => setShowPass(p => !p)}
                 style={{
-                  marginTop: 6,
-                  background: loading ? '#8096aa' : '#5aa9c4',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 30,
-                  padding: '14px',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  boxShadow: loading
-                    ? 'none'
-                    : '4px 4px 10px #c8d2de, -4px -4px 10px #ffffff',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#8a96a3', fontSize: 11, fontWeight: 700,
+                  padding: 0, flexShrink: 0, letterSpacing: '0.04em',
                 }}
               >
-                {loading ? (
-                  <>
-                    <div style={{
-                      width: 14, height: 14,
-                      border: '2px solid rgba(255,255,255,0.3)',
-                      borderTop: '2px solid white',
-                      borderRadius: '50%',
-                      animation: 'neu-spin 0.75s linear infinite',
-                    }} />
-                    Creating account...
-                  </>
-                ) : 'Create Account →'}
+                {showPass ? 'HIDE' : 'SHOW'}
               </button>
-            </form>
+            </div>
 
-            <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#8096aa' }}>
-              Already have an account?{' '}
-              <Link to="/login" style={{ color: '#5aa9c4', fontWeight: 700, textDecoration: 'none' }}>
-                Sign in
-              </Link>
-            </p>
+            {/* Strength meter */}
+            {formData.password && (
+              <div style={{ marginTop: 8, padding: '0 6px' }}>
+                <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <div
+                      key={i}
+                      style={{
+                        flex: 1, height: 3, borderRadius: 4,
+                        background: i < passwordStrength
+                          ? strengthColors[passwordStrength - 1]
+                          : '#c3c9d1',
+                        transition: 'background 0.3s',
+                      }}
+                    />
+                  ))}
+                </div>
+                <span
+                  style={{
+                    fontSize: 11, fontWeight: 600,
+                    color: passwordStrength > 0 ? strengthColors[passwordStrength - 1] : '#9ca3af',
+                  }}
+                >
+                  {passwordStrength > 0 ? strengthLabels[passwordStrength - 1] : ''}
+                </span>
+              </div>
+            )}
           </div>
-        </div>
+
+          {/* Confirm Password */}
+          <div>
+            <div style={fieldStyle}>
+              <input
+                type={showConf ? 'text' : 'password'}
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Confirm Password"
+                autoComplete="new-password"
+                style={inputStyle}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConf(p => !p)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#8a96a3', fontSize: 11, fontWeight: 700,
+                  padding: 0, flexShrink: 0, letterSpacing: '0.04em',
+                }}
+              >
+                {showConf ? 'HIDE' : 'SHOW'}
+              </button>
+            </div>
+            {passwordsDiff && (
+              <p style={{ fontSize: 11, color: '#e74c3c', margin: '5px 0 0 6px' }}>⚠️ Passwords do not match</p>
+            )}
+            {passwordsMatch && (
+              <p style={{ fontSize: 11, color: '#27ae60', margin: '5px 0 0 6px' }}>✓ Passwords match</p>
+            )}
+          </div>
+
+          {/* Password requirements checklist */}
+          {formData.password && (
+            <div
+              style={{
+                background: '#e6ecf3',
+                boxShadow: 'inset 4px 4px 8px #c3c9d1, inset -4px -4px 8px #ffffff',
+                borderRadius: 16,
+                padding: '12px 16px',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '5px 12px',
+              }}
+            >
+              {[
+                { test: formData.password.length >= 8,                         label: '8+ characters'    },
+                { test: /[A-Z]/.test(formData.password),                       label: 'Uppercase letter'  },
+                { test: /[a-z]/.test(formData.password),                       label: 'Lowercase letter'  },
+                { test: /[0-9]/.test(formData.password),                       label: 'Number'            },
+                { test: /[!@#$%^&*(),.?":{}|<>]/.test(formData.password),     label: 'Special character' },
+              ].map(({ test, label }) => (
+                <div
+                  key={label}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    fontSize: 11, fontWeight: 600,
+                    color: test ? '#27ae60' : '#9ca3af',
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  <span style={{ fontSize: 10 }}>{test ? '✓' : '○'}</span>
+                  {label}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Submit Button — identical pill style to Login */}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              height: 50,
+              borderRadius: 50,
+              border: 'none',
+              background: '#5aa9c4',
+              color: '#ffffff',
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '6px 6px 12px #c3c9d1, -6px -6px 12px #ffffff',
+              transition: 'box-shadow 0.2s',
+              marginTop: 6,
+              opacity: loading ? 0.7 : 1,
+            }}
+            onMouseEnter={e => {
+              if (!loading) e.currentTarget.style.boxShadow = 'inset 4px 4px 8px #4a94ad, inset -4px -4px 8px #6ec0db'
+            }}
+            onMouseLeave={e => {
+              if (!loading) e.currentTarget.style.boxShadow = '6px 6px 12px #c3c9d1, -6px -6px 12px #ffffff'
+            }}
+          >
+            {loading ? (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span
+                  style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)',
+                    borderTopColor: '#fff',
+                    display: 'inline-block',
+                    animation: 'spin 0.8s linear infinite',
+                  }}
+                />
+                Creating Account...
+              </span>
+            ) : (
+              'Create Account'
+            )}
+          </button>
+
+          {/* Footer link — identical to Login's sign-up link */}
+          <div style={{ textAlign: 'center', fontSize: 13.5, color: '#8a96a3', marginTop: 4 }}>
+            Already have an account?{' '}
+            <Link to="/login" style={{ color: '#5aa9c4', fontWeight: 700, textDecoration: 'none' }}>
+              Sign In
+            </Link>
+          </div>
+
+        </form>
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }
