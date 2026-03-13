@@ -27,22 +27,27 @@ def _can_manage_roles(user) -> bool:
 @roles_bp.route('', methods=['GET'])
 @jwt_required_custom
 def get_roles():
+
     user = g.current_user
 
+    if not user.organization_id:
+        return jsonify({
+            "success": True,
+            "data": {"roles": [], "total": 0},
+            "message": "User has no organization"
+        }), 200
+
+    RoleService.seed_default_roles(user.organization_id)
+
     roles = RoleService.get_all(user.organization_id)
-    if not roles:
-        RoleService.seed_default_roles(user.organization_id)
-        roles = RoleService.get_all(user.organization_id)
 
     return jsonify({
-        'success': True,
-        'data': {
-            'roles': [r.to_dict() for r in roles],
-            'total': len(roles),
-        },
-        'message': 'Roles retrieved successfully'
+        "success": True,
+        "data": {
+            "roles": [r.to_dict() for r in roles],
+            "total": len(roles)
+        }
     }), 200
-
 
 @roles_bp.route('/permissions', methods=['GET'])
 @jwt_required_custom
@@ -172,7 +177,7 @@ def create_role():
     }), 201
 
 
-@roles_bp.route('/<role_id>', methods=['PUT'])
+@roles_bp.route('/<role_id>', methods=['PUT', 'PATCH'])
 @jwt_required_custom
 def update_role(role_id: str):
     user = g.current_user

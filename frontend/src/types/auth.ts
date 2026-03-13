@@ -1,13 +1,14 @@
+export type UserRole = 'admin' | 'manager' | 'analyst' | 'staff'
+
 export interface User {
   id: string
   email: string
   full_name: string
-  subscription_tier: 'free' | 'basic_premium' | 'premium'
-  organization_id: string | null
+  role: UserRole
+  organization_id?: string | null
+  subscription_tier?: string
   is_active: boolean
-  created_at: string
 }
-
 export interface AuthTokens {
   access_token: string
   refresh_token: string

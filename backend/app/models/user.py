@@ -7,7 +7,7 @@ class User(db.Model):
 
     id = db.Column(db.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = db.Column(db.String(255), unique=True, nullable=False)
-    role = db.Column(db.String(50), default="user")
+    role = db.Column(db.String(50), default="staff")
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(255), nullable=False)
     organization_id = db.Column(db.UUID(as_uuid=True), db.ForeignKey('organizations.id'), nullable=True)
